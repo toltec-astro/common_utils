@@ -1,0 +1,4 @@
+[submodule "cmake"]
+	path = cmake
+	url = git@github.com:toltec-astro/common_cmake_modules.git
+	branch = master
