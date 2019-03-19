@@ -6,7 +6,7 @@
 #include <dyn/dynamic_execution.h>
 #include <grppi.h>
 
-namespace ex {
+namespace grppiex {
 
 #ifdef DOXYGEN
 /**
@@ -31,9 +31,21 @@ enum class Mode : int {
 };
 #else
 meta_enum_class(Mode, int, seq = 1 << 0, thr = 1 << 1, omp = 1 << 2,
-                tbb = 1 << 3, ff = 1 << 4);
+                tbb = 1 << 3, ff = 1 << 4, par = thr | omp | tbb | ff);
 BITMASK_DEFINE_MAX_ELEMENT(Mode, ff);
 #endif
+/// @brief The default ordering of modes, from high priority to low.
+static std::vector<Mode> default_mode_order = {
+    Mode::omp, Mode::thr, Mode::tbb, Mode::ff, Mode::seq
+};
+
+/// @brief Set the default ordering of modes.
+template<typename ... Mode>
+void set_default_mode_order (Mode ... modes) {
+    default_mode_order = {modes...};
+};
+
+
 /// @brief Returns the supported GRPPI execution modes.
 constexpr auto supported_modes() {
     using T = decltype(Mode_meta)::UnderlyingType;
@@ -54,12 +66,18 @@ constexpr auto supported_modes() {
     if constexpr (is_supported<parallel_execution_ff>()) {
         mode = mode | static_cast<int>(Mode::ff);
     }
-    return static_cast<Mode>(mode);
+    return bitmask::bitmask(static_cast<Mode>(mode));
 }
-/// @brief Returns the supported GRPPI execution mode names.
-constexpr decltype(auto) supported_mode_names() {
+/// @brief Returns the number of supported GRPPI execution modes.
+constexpr auto supported_mode_count() {
     constexpr auto mode = supported_modes();
-    std::array<std::string_view, meta::bitcount(static_cast<int>(mode))> ret;
+    return meta::bitcount(static_cast<int>(supported_modes().bits()));
+}
+
+/// @brief Returns the supported GRPPI execution mode names.
+constexpr auto supported_mode_names() {
+    constexpr auto mode = supported_modes();
+    std::array<std::string_view, supported_mode_count()> ret;
     int i = 0;
     for (const auto &m : Mode_meta.members) {
         if (m.value | mode) {
@@ -69,45 +87,55 @@ constexpr decltype(auto) supported_mode_names() {
     }
     return ret;
 }
+
 /// @brief Returns the default GRPPI execution mode.
-constexpr auto default_mode() {
-    constexpr auto mode = supported_modes();
-    if constexpr (mode & Mode::omp)
-        return Mode::omp;
-    if constexpr (mode & Mode::thr)
-        return Mode::thr;
-    if constexpr (mode & Mode::tbb)
-        return Mode::tbb;
-    if constexpr (mode & Mode::ff)
-        return Mode::ff;
-    if constexpr (mode & Mode::seq)
-        return Mode::seq;
-    return mode;
+/// @param modes The modes to choose from
+inline auto default_mode(bitmask::bitmask<Mode> modes) {
+    for (const auto& m: default_mode_order) {
+        if (m & modes) return m;
+    }
+    throw std::runtime_error("unable to infer default grppi execution mode");
 }
-/// @brief Returns the default GRPPI execution mode name.
-constexpr decltype(auto) default_mode_name() {
-    return Mode_value_to_string(default_mode());
+
+/// @brief Returns the default GRPPI execution mode from all supported modes;
+inline auto default_mode() {
+    return default_mode(supported_modes());
 }
+
+/// @brief Returns the default GRPPI execution mode name;
+template <typename ... Args>
+auto default_mode_name(Args ... args) {
+    return Mode_value_to_string(default_mode(args...));
+}
+
 /// @brief Returns the GRPPI execution object of \p mode.
+/// \p default_mode_order is used if multiple modes are set.
 template <typename... Args>
-grppi::dynamic_execution dyn(Mode mode, Args &&... args) {
+grppi::dynamic_execution dyn(bitmask::bitmask<Mode> modes, Args &&... args) {
     using namespace grppi;
-    if (!(supported_modes() & mode))
+    if (!(supported_modes() & modes))
         throw std::runtime_error(
-            fmt::format("grppi execution mode {} is not supported",
-                        Mode_value_to_string(mode)));
-    if (mode & Mode::seq)
-        return sequential_execution(FWD(args)...);
-    if (mode & Mode::thr)
-        return parallel_execution_native(FWD(args)...);
-    if (mode & Mode::omp)
-        return parallel_execution_omp(FWD(args)...);
-    if (mode & Mode::tbb)
-        return parallel_execution_tbb(FWD(args)...);
-    if (mode & Mode::ff)
-        return parallel_execution_ff(FWD(args)...);
-    return dynamic_execution();
+            // fmt::format("grppi execution mode {} is not supported",
+            //           Mode_value_to_string(modes))
+                "modes not supported");
+    return [&](Mode mode) -> grppi::dynamic_execution {
+        switch (mode) {
+            case Mode::seq:
+                return sequential_execution(FWD(args)...);
+            case Mode::thr:
+                return parallel_execution_native(FWD(args)...);
+            case Mode::omp:
+                return parallel_execution_omp(FWD(args)...);
+            case Mode::tbb:
+                return parallel_execution_tbb(FWD(args)...);
+            case Mode::ff:
+                return parallel_execution_ff(FWD(args)...);
+            default:
+                throw std::runtime_error("unknown grppi execution mode");
+        }
+    }(default_mode(modes));
 }
+
 /// @brief Returns the GRPPI execution object of mode \p name.
 template <typename... Args>
 grppi::dynamic_execution dyn(std::string_view name, Args &&... args) {

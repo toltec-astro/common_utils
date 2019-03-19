@@ -3,6 +3,7 @@
 #include <cassert>
 #include <fmt/format.h>
 #include <iterator>
+#include "meta.h"
 
 namespace eigeniter {
 
@@ -117,6 +118,16 @@ template <typename Derived>
 decltype(auto) iters(const Eigen::DenseBase<Derived> &m) {
     return std::make_pair(EigenIter(m.derived(), 0),
                           EigenIter(m.derived(), m.size()));
+}
+
+/**
+ * @brief Returns std::invoke args with iterator-sentinel [begin, end) of Eigen types.
+ */
+template <typename Derived, typename... Args>
+decltype(auto) iter_args(const Eigen::DenseBase<Derived> &m, Args...args) {
+    return std::make_tuple(EigenIter(m.derived(), 0),
+                           EigenIter(m.derived(), m.size()),
+                           FWD(args)...);
 }
 
 /**

@@ -1,6 +1,6 @@
 project (common_utils_test LANGUAGES CXX C)
 
-add_executable(common_utils_test EXCLUDE_FROM_ALL)
+add_executable(common_utils_test)
 set_target_properties(common_utils_test
     PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
