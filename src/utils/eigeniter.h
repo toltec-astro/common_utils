@@ -5,6 +5,38 @@
 #include <iterator>
 #include "meta.h"
 
+/*
+namespace fmt {
+
+template <typename _Derived>
+struct EigenIter;
+
+template <typename T>
+struct formatter<EigenIter<T>> {
+
+    template <typename ParseContext>
+    auto parse(ParseContext &ctx) {
+        auto begin = ctx.begin(), end = ctx.end();
+        if (begin == end) return begin;
+        auto it = ctx.begin();
+        if (it == )
+        if (it != ctx.end() && *it == ':') ++it;
+        spec =
+        auto end = it;
+        while (end != ctx.end() && *end != '}') ++end;
+    }
+
+    template <typename FormatContext>
+    auto format(const EigenIter<T> & it, FormatContext &ctx) {
+      return format_to(ctx.begin(), "({:.1f}, {:.1f})", p.x, p.y);
+    }
+
+    mutable std::string_view spec;
+};
+
+
+}  // namespace fmt
+*/
 namespace eigeniter {
 
 /**
@@ -121,10 +153,10 @@ decltype(auto) iters(const Eigen::DenseBase<Derived> &m) {
 }
 
 /**
- * @brief Returns std::invoke args with iterator-sentinel [begin, end) of Eigen types.
+ * @brief Returns std::apply args with iterator-sentinel [begin, end) of Eigen types.
  */
 template <typename Derived, typename... Args>
-decltype(auto) iter_args(const Eigen::DenseBase<Derived> &m, Args...args) {
+decltype(auto) iterargs(const Eigen::DenseBase<Derived> &m, Args&&...args) {
     return std::make_tuple(EigenIter(m.derived(), 0),
                            EigenIter(m.derived(), m.size()),
                            FWD(args)...);
@@ -136,9 +168,8 @@ decltype(auto) iter_args(const Eigen::DenseBase<Derived> &m, Args...args) {
  * @param func Callable that takes an iterator-sentinel pair [begin, end).
  */
 template <typename Derived, typename Func>
-decltype(auto) apply(const Eigen::DenseBase<Derived> &m, Func &&func) {
-    auto [begin, end] = iters(m.derived());
-    return std::forward<decltype(func)>(func)(begin, end);
+decltype(auto) iterapply(const Eigen::DenseBase<Derived> &m, Func &&func) {
+    return std::apply(FWD(func), iterargs(m.derived()));
 }
 
 } // namespace eigeniter

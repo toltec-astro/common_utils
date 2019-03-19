@@ -1,6 +1,6 @@
 #include <benchmark/benchmark.h>
 #include <gtest/gtest.h>
-#include <utils/ex.h>
+#include <utils/grppiex.h>
 #include <iostream>
 
 namespace {
