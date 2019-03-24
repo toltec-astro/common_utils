@@ -1,11 +1,18 @@
 #pragma once
 #include <array>
-#include <string_view>
 #include <optional>
+#include <string_view>
 
-template <typename EnumType>
-struct MetaEnumMember
-{
+namespace meta_enum {
+
+// helper type2type
+template <typename T> struct type_t {};
+/// @brief functional traits to test if enum has meta
+template <typename T> std::false_type has_meta(type_t<T>);
+/// @brief functional traits to obtain the meta type of enum
+template <typename T> void enum_meta(type_t<T>);
+
+template <typename EnumType> struct MetaEnumMember {
     EnumType value = {};
     std::string_view name;
     std::string_view string;
@@ -13,94 +20,84 @@ struct MetaEnumMember
 };
 
 template <typename EnumType, typename UnderlyingTypeIn, size_t size>
-struct MetaEnum
-{
+struct MetaEnum {
     using UnderlyingType = UnderlyingTypeIn;
+    std::string_view name;
     std::string_view string;
     std::array<MetaEnumMember<EnumType>, size> members = {};
 };
 
-namespace meta_enum_internal
-{
+namespace internal {
 
-
-constexpr bool isNested (size_t brackets, bool quote)
-{
+constexpr bool isNested(size_t brackets, bool quote) {
     return brackets != 0 || quote;
 }
 
-constexpr size_t nextEnumCommaOrEnd(size_t start, std::string_view enumString)
-{
+constexpr size_t nextEnumCommaOrEnd(size_t start, std::string_view enumString) {
     size_t brackets = 0; //()[]{}
-    bool quote = false; //""
+    bool quote = false;  //""
     char lastChar = '\0';
     char nextChar = '\0';
 
-    auto feedCounters = [&brackets, &quote, &lastChar, &nextChar] (char c)
-    {
-        if(quote)
-        {
-            if(lastChar != '\\' && c == '"') //ignore " if they are backslashed
+    auto feedCounters = [&brackets, &quote, &lastChar, &nextChar](char c) {
+        if (quote) {
+            if (lastChar != '\\' && c == '"') // ignore " if they are
+                                              // backslashed
                 quote = false;
             return;
         }
 
-        switch(c)
-        {
-            case '"':
-                if(lastChar != '\\') //ignore " if they are backslashed
-                    quote = true;
+        switch (c) {
+        case '"':
+            if (lastChar != '\\') // ignore " if they are backslashed
+                quote = true;
+            break;
+        case '(':
+        case '<':
+            if (lastChar == '<' || nextChar == '<')
                 break;
-            case '(':
-            case '<':
-                if(lastChar == '<' || nextChar == '<')
-                    break;
-            case '{':
-                ++brackets;
+        case '{':
+            ++brackets;
+            break;
+        case ')':
+        case '>':
+            if (lastChar == '>' || nextChar == '>')
                 break;
-            case ')':
-            case '>':
-                if(lastChar == '>' || nextChar == '>')
-                    break;
-            case '}':
-                --brackets;
-                break;
-            default:
-                break;
+        case '}':
+            --brackets;
+            break;
+        default:
+            break;
         }
     };
 
     size_t current = start;
-    for(; current < enumString.size() && (isNested(brackets, quote) || (enumString[current] != ',')); ++current)
-    {
+    for (; current < enumString.size() &&
+           (isNested(brackets, quote) || (enumString[current] != ','));
+         ++current) {
         feedCounters(enumString[current]);
         lastChar = enumString[current];
-        nextChar = current + 2 < enumString.size() ? enumString[current + 2] : '\0';
+        nextChar =
+            current + 2 < enumString.size() ? enumString[current + 2] : '\0';
     }
 
     return current;
 }
 
-constexpr bool isAllowedIdentifierChar(char c)
-{
-    return (c >= 'a' && c <= 'z') ||
-           (c >= 'A' && c <= 'Z') ||
-           (c >= '0' && c <= '9') ||
-           c == '_';
+constexpr bool isAllowedIdentifierChar(char c) {
+    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+           (c >= '0' && c <= '9') || c == '_';
 }
 
-constexpr std::string_view parseEnumMemberName(std::string_view memberString)
-{
+constexpr std::string_view parseEnumMemberName(std::string_view memberString) {
     size_t nameStart = 0;
-    while(!isAllowedIdentifierChar(memberString[nameStart]))
-    {
+    while (!isAllowedIdentifierChar(memberString[nameStart])) {
         ++nameStart;
     }
 
     size_t nameSize = 0;
 
-    while(isAllowedIdentifierChar(memberString[nameStart + nameSize]))
-    {
+    while (isAllowedIdentifierChar(memberString[nameStart + nameSize])) {
         ++nameSize;
     }
 
@@ -108,9 +105,11 @@ constexpr std::string_view parseEnumMemberName(std::string_view memberString)
 }
 
 template <typename EnumType, typename UnderlyingType, size_t size>
-constexpr MetaEnum<EnumType, UnderlyingType, size> parseMetaEnum(std::string_view in, const std::array<EnumType, size>& values)
-{
+constexpr MetaEnum<EnumType, UnderlyingType, size>
+parseMetaEnum(std::string_view name, std::string_view in,
+              const std::array<EnumType, size> &values) {
     MetaEnum<EnumType, UnderlyingType, size> result;
+    result.name = name;
     result.string = in;
 
     std::array<std::string_view, size> memberStrings;
@@ -118,24 +117,23 @@ constexpr MetaEnum<EnumType, UnderlyingType, size> parseMetaEnum(std::string_vie
 
     size_t currentStringStart = 0;
 
-    while(amountFilled < size)
-    {
-        size_t currentStringEnd = nextEnumCommaOrEnd(currentStringStart + 1, in);
+    while (amountFilled < size) {
+        size_t currentStringEnd =
+            nextEnumCommaOrEnd(currentStringStart + 1, in);
         size_t currentStringSize = currentStringEnd - currentStringStart;
 
-        if(currentStringStart != 0)
-        {
+        if (currentStringStart != 0) {
             ++currentStringStart;
             --currentStringSize;
         }
 
-        memberStrings[amountFilled] = std::string_view(in.data() + currentStringStart, currentStringSize);
+        memberStrings[amountFilled] =
+            std::string_view(in.data() + currentStringStart, currentStringSize);
         ++amountFilled;
         currentStringStart = currentStringEnd;
     }
 
-    for(size_t i = 0; i < memberStrings.size(); ++i)
-    {
+    for (size_t i = 0; i < memberStrings.size(); ++i) {
         result.members[i].name = parseEnumMemberName(memberStrings[i]);
         result.members[i].string = memberStrings[i];
         result.members[i].value = values[i];
@@ -145,24 +143,18 @@ constexpr MetaEnum<EnumType, UnderlyingType, size> parseMetaEnum(std::string_vie
     return result;
 }
 
-template <typename EnumUnderlyingType>
-struct IntWrapper
-{
-    constexpr IntWrapper(): value(0)
-    {
-    }
-    constexpr IntWrapper(EnumUnderlyingType in): value(in), empty(false)
-    {
-    }
-    constexpr IntWrapper& operator=(EnumUnderlyingType in)
-    {
+template <typename EnumUnderlyingType> struct IntWrapper {
+    constexpr IntWrapper() : value(0) {}
+    constexpr IntWrapper(EnumUnderlyingType in) : value(in), empty(false) {}
+    constexpr IntWrapper &operator=(EnumUnderlyingType in) {
         value = in;
         empty = false;
         return *this;
     }
     EnumUnderlyingType value;
     bool empty = true;
-    constexpr friend IntWrapper operator|(const IntWrapper& lhs, const IntWrapper& rhs) {
+    constexpr friend IntWrapper operator|(const IntWrapper &lhs,
+                                          const IntWrapper &rhs) {
         IntWrapper ret = lhs;
         ret.value = lhs.value | rhs.value;
         return ret;
@@ -170,13 +162,12 @@ struct IntWrapper
 };
 
 template <typename EnumType, typename EnumUnderlyingType, size_t size>
-constexpr std::array<EnumType, size> resolveEnumValuesArray(const std::initializer_list<IntWrapper<EnumUnderlyingType>>& in)
-{
+constexpr std::array<EnumType, size> resolveEnumValuesArray(
+    const std::initializer_list<IntWrapper<EnumUnderlyingType>> &in) {
     std::array<EnumType, size> result{};
 
     EnumUnderlyingType nextValue = 0;
-    for(size_t i = 0; i < size; ++i)
-    {
+    for (size_t i = 0; i < size; ++i) {
         auto wrapper = *(in.begin() + i);
         EnumUnderlyingType newValue = wrapper.empty ? nextValue : wrapper.value;
         nextValue = newValue + 1;
@@ -185,123 +176,63 @@ constexpr std::array<EnumType, size> resolveEnumValuesArray(const std::initializ
 
     return result;
 }
-}
+} // namespace internal
 
-#define meta_enum(Type, UnderlyingType, ...)\
-    enum Type : UnderlyingType { __VA_ARGS__};\
-    constexpr static auto Type##_internal_size = []  () constexpr\
-    {\
-        using IntWrapperType = meta_enum_internal::IntWrapper<UnderlyingType>;\
-        IntWrapperType __VA_ARGS__;\
-        return std::initializer_list<IntWrapperType>{__VA_ARGS__}.size();\
-    };\
-    constexpr static auto Type##_meta = meta_enum_internal::parseMetaEnum<Type, UnderlyingType, Type##_internal_size()>(#__VA_ARGS__, []() {\
-        using IntWrapperType = meta_enum_internal::IntWrapper<UnderlyingType>;\
-        IntWrapperType __VA_ARGS__;\
-        return meta_enum_internal::resolveEnumValuesArray<Type, UnderlyingType, Type##_internal_size()>({__VA_ARGS__});\
-    }());\
-    constexpr static auto Type##_value_to_string = [](Type e)\
-    {\
-        for(const auto& member : Type##_meta.members)\
-        {\
-            if(member.value == e)\
-                return member.name;\
-        }\
-        return std::string_view("__INVALID_ENUM_VAL__");\
-    \
-    };\
-    constexpr static auto Type##_meta_from_name = [](std::string_view s) -> std::optional<MetaEnumMember<Type>>\
-    {\
-        for(const auto& member : Type##_meta.members)\
-        {\
-            if(member.name == s)\
-                return member;\
-        }\
-        return std::nullopt;\
-    \
-    };\
-    constexpr static auto Type##_meta_from_value = [] (Type v) -> std::optional<MetaEnumMember<Type>>\
-    {\
-        for(const auto& member : Type##_meta.members)\
-        {\
-            if(member.value == v)\
-                return member;\
-        }\
-        return std::nullopt;\
-    \
-    };\
-    constexpr static auto Type##_meta_from_index = [] (size_t i)\
-    {\
-        std::optional<MetaEnumMember<Type>> result;\
-        if(i < Type##_meta.members.size())\
-            result = Type##_meta.members[i];\
-        return result;\
-    \
-    };\
-    template<typename OStream>\
-    OStream & operator << (OStream &o, const Type& v)\
-    {\
-        o << Type##_value_to_string(v);\
-        return o;\
-    \
-    }
+} // namespace meta_enum
 
-#define meta_enum_class(Type, UnderlyingType, ...)\
-    enum class Type : UnderlyingType { __VA_ARGS__};\
-    /** @cond meta_enum */ \
-    constexpr static auto Type##_internal_size = [] () constexpr\
-    {\
-        using IntWrapperType = meta_enum_internal::IntWrapper<UnderlyingType>;\
-        IntWrapperType __VA_ARGS__;\
-        return std::initializer_list<IntWrapperType>{__VA_ARGS__}.size();\
-    };\
-    constexpr static auto Type##_meta = meta_enum_internal::parseMetaEnum<Type, UnderlyingType, Type##_internal_size()>(#__VA_ARGS__, []() {\
-        using IntWrapperType = meta_enum_internal::IntWrapper<UnderlyingType>;\
-        IntWrapperType __VA_ARGS__;\
-        return meta_enum_internal::resolveEnumValuesArray<Type, UnderlyingType, Type##_internal_size()>({__VA_ARGS__});\
-    }());\
-    constexpr static auto Type##_value_to_string = [](Type e)\
-    {\
-        for(const auto& member : Type##_meta.members)\
-        {\
-            if(member.value == e)\
-                return member.name;\
-        }\
-        return std::string_view("__INVALID_ENUM_VAL__");\
-    \
-    };\
-    constexpr static auto Type##_meta_from_name = [](std::string_view s) -> std::optional<MetaEnumMember<Type>>\
-    {\
-        for(const auto& member : Type##_meta.members)\
-        {\
-            if(member.name == s)\
-                return member;\
-        }\
-        return std::nullopt;\
-    \
-    };\
-    constexpr static auto Type##_meta_from_value = [] (Type v) -> std::optional<MetaEnumMember<Type>>\
-    {\
-        for(const auto& member : Type##_meta.members)\
-        {\
-            if(member.value == v)\
-                return member;\
-        }\
-        return std::nullopt;\
-    \
-    };\
-    constexpr static auto Type##_meta_from_index = [] (size_t i)\
-    {\
-        std::optional<MetaEnumMember<Type>> result;\
-        if(i < Type##_meta.members.size())\
-            result = Type##_meta.members[i];\
-        return result;\
-    \
-    };\
-    template<typename OStream>\
-    OStream & operator << (OStream &o, const Type& v)\
-    {\
-        o << Type##_value_to_string(v);\
-        return o;\
-    \
-    }  /** @endcond */
+#define meta_enum_class(Type, UnderlyingType, ...)                             \
+    enum class Type : UnderlyingType { __VA_ARGS__ };                          \
+    struct Type##_meta {                                                       \
+        constexpr static auto internal_size = []() constexpr {                 \
+            using IntWrapperType =                                             \
+                meta_enum::internal::IntWrapper<UnderlyingType>;               \
+            IntWrapperType __VA_ARGS__;                                        \
+            return std::initializer_list<IntWrapperType>{__VA_ARGS__}.size();  \
+        };                                                                     \
+        constexpr static auto meta = meta_enum::internal::parseMetaEnum<       \
+            Type, UnderlyingType, internal_size()>(#Type, #__VA_ARGS__, []() { \
+            using IntWrapperType =                                             \
+                meta_enum::internal::IntWrapper<UnderlyingType>;               \
+            IntWrapperType __VA_ARGS__;                                        \
+            return meta_enum::internal::resolveEnumValuesArray<                \
+                Type, UnderlyingType, internal_size()>({__VA_ARGS__});         \
+        }());                                                                  \
+        constexpr static auto to_name = [](Type e) {                           \
+            for (const auto &member : meta.members) {                          \
+                if (member.value == e)                                         \
+                    return member.name;                                        \
+            }                                                                  \
+            return std::string_view("__INVALID_ENUM_VAL__");                   \
+        };                                                                     \
+        constexpr static auto from_name = [](std::string_view s)               \
+            -> std::optional<meta_enum::MetaEnumMember<Type>> {                \
+            for (const auto &member : meta.members) {                          \
+                if (member.name == s)                                          \
+                    return member;                                             \
+            }                                                                  \
+            return std::nullopt;                                               \
+        };                                                                     \
+        constexpr static auto from_value =                                     \
+            [](Type v) -> std::optional<meta_enum::MetaEnumMember<Type>> {     \
+            for (const auto &member : meta.members) {                          \
+                if (member.value == v)                                         \
+                    return member;                                             \
+            }                                                                  \
+            return std::nullopt;                                               \
+        };                                                                     \
+        constexpr static auto from_index = [](size_t i) {                      \
+            std::optional<meta_enum::MetaEnumMember<Type>> result;             \
+            if (i < meta.members.size())                                       \
+                result = meta.members[i];                                      \
+            return result;                                                     \
+        };                                                                     \
+        constexpr static auto &name = meta.name;                               \
+        constexpr static auto &string = meta.string;                           \
+        constexpr static auto &members = meta.members;                         \
+    };                                                                         \
+    template <typename OStream>                                                \
+    OStream &operator<<(OStream &os, const Type &v) {                          \
+        return os << fmt::format("{:s}", Type##_meta::from_value(v));          \
+    }                                                                          \
+    Type##_meta enum_meta(meta_enum::type_t<Type>);                            \
+    std::true_type has_meta(meta_enum::type_t<Type>)

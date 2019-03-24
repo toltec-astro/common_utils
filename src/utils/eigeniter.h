@@ -1,42 +1,9 @@
 #pragma once
+#include "meta.h"
 #include <Eigen/Core>
 #include <cassert>
-#include <fmt/format.h>
 #include <iterator>
-#include "meta.h"
 
-/*
-namespace fmt {
-
-template <typename _Derived>
-struct EigenIter;
-
-template <typename T>
-struct formatter<EigenIter<T>> {
-
-    template <typename ParseContext>
-    auto parse(ParseContext &ctx) {
-        auto begin = ctx.begin(), end = ctx.end();
-        if (begin == end) return begin;
-        auto it = ctx.begin();
-        if (it == )
-        if (it != ctx.end() && *it == ':') ++it;
-        spec =
-        auto end = it;
-        while (end != ctx.end() && *end != '}') ++end;
-    }
-
-    template <typename FormatContext>
-    auto format(const EigenIter<T> & it, FormatContext &ctx) {
-      return format_to(ctx.begin(), "({:.1f}, {:.1f})", p.x, p.y);
-    }
-
-    mutable std::string_view spec;
-};
-
-
-}  // namespace fmt
-*/
 namespace eigeniter {
 
 /**
@@ -127,15 +94,13 @@ template <typename _Derived> struct EigenIter {
         return tmp;
     }
     friend self operator+(difference_type x, const self &y) { return y + x; }
-    template <typename OStream>
-    friend OStream &operator<<(OStream &out, const self &iter) {
-        return out << fmt::format(
-                   "eigeniter@{:x} n={} outer={} stride=({}, {})",
-                   reinterpret_cast<std::uintptr_t>(iter.data), iter.n,
-                   iter.outer, iter.outer_stride, iter.inner_stride);
-    }
+
     Scalar *data;
     difference_type n;
+
+    auto internals() const {
+        return std::make_tuple(outer, outer_stride, inner_stride);
+    }
 
 protected:
     difference_type outer;
@@ -146,20 +111,19 @@ protected:
 /**
  * @brief Returns linear access iterator-sentinel [begin, end) for Eigen types.
  */
-template <typename Derived>
-decltype(auto) iters(const Eigen::DenseBase<Derived> &m) {
+template <typename Derived> auto iters(const Eigen::DenseBase<Derived> &m) {
     return std::make_pair(EigenIter(m.derived(), 0),
                           EigenIter(m.derived(), m.size()));
 }
 
 /**
- * @brief Returns std::apply args with iterator-sentinel [begin, end) of Eigen types.
+ * @brief Returns std::apply args with iterator-sentinel [begin, end) of Eigen
+ * types.
  */
 template <typename Derived, typename... Args>
-decltype(auto) iterargs(const Eigen::DenseBase<Derived> &m, Args&&...args) {
+auto iterargs(const Eigen::DenseBase<Derived> &m, Args &&... args) {
     return std::make_tuple(EigenIter(m.derived(), 0),
-                           EigenIter(m.derived(), m.size()),
-                           FWD(args)...);
+                           EigenIter(m.derived(), m.size()), FWD(args)...);
 }
 
 /**
@@ -173,3 +137,22 @@ decltype(auto) iterapply(const Eigen::DenseBase<Derived> &m, Func &&func) {
 }
 
 } // namespace eigeniter
+
+/*
+namespace std {
+
+template<typename PlainObjectType, int Options, typename StrideType>
+auto begin(
+        const Eigen::Ref< PlainObjectType, Options, StrideType > & ref)
+{
+   return EigenIter(ref, 0);
+}
+
+template<typename PlainObjectType, int Options, typename StrideType>
+auto end(
+        const Eigen::Ref< PlainObjectType, Options, StrideType > & ref)
+{
+   return EigenIter(ref, ref.size());
+}
+}  // namespace std
+*/

@@ -6,7 +6,10 @@
 
 namespace datatable {
 
-/// Throw when there is an error in parsing data table.
+/// Default Index type from Eigen.
+using Index = Eigen::Index;
+
+/// @brief Throw when there is an error in parsing data table.
 struct ParseError : public std::runtime_error {
     using std::runtime_error::runtime_error;
 };
@@ -51,10 +54,9 @@ template <> struct IO<Format::Ascii> {
      */
     template <typename Scalar, typename IStream>
     static decltype(auto) parse(IStream &is,
-                                const std::vector<int> &usecols = {},
+                                const std::vector<Index> &usecols = {},
                                 const std::string &delim = " \t") {
-        SPDLOG_TRACE("parse as ascii, usecols={} delim=\"{}\"",
-                     logging::pprint(usecols.data(), usecols.size()), delim);
+        SPDLOG_TRACE("parse as ascii, usecols={} delim=\"{}\"", usecols, delim);
         // is.exceptions(std::ios_base::failbit | std::ios_base::badbit);
         std::string line;
         std::string strnum;
@@ -87,13 +89,13 @@ template <> struct IO<Format::Ascii> {
             }
         }
         // convert to Eigen matrix
-        auto nrows = static_cast<int>(data.size());
-        auto ncols = static_cast<int>(data[0].size());
+        auto nrows = static_cast<Index>(data.size());
+        auto ncols = static_cast<Index>(data[0].size());
         auto ncols_use = ncols;
         SPDLOG_TRACE("shape of table ({}, {})", nrows, ncols);
         // get the usecols
         if (!usecols.empty()) {
-            for (auto &i : usecols) {
+            for (auto i : usecols) {
                 if ((i < -ncols) || (i >= ncols))
                     throw ParseError(fmt::format(
                         "invalid column index {} for table of ncols={}", i,
@@ -106,7 +108,7 @@ template <> struct IO<Format::Ascii> {
         using Eigen::Map;
         using Eigen::Matrix;
         Matrix<Scalar, Dynamic, Dynamic> ret(nrows, ncols_use);
-        for (auto i = 0; i < nrows; ++i) {
+        for (Index i = 0; i < nrows; ++i) {
             if (usecols.empty()) {
                 ret.row(i) =
                     Map<Matrix<Scalar, Dynamic, 1>>(&data[i][0], ncols_use);
@@ -145,9 +147,8 @@ template <> struct IO<Format::Memdump> {
      * Default is Eigen::ColMajor.
      */
     template <typename Scalar, typename IStream>
-    static decltype(auto) parse(IStream &is,
-                                Eigen::Index nrows = Eigen::Dynamic,
-                                Eigen::Index ncols = Eigen::Dynamic,
+    static decltype(auto) parse(IStream &is, Index nrows = Eigen::Dynamic,
+                                Index ncols = Eigen::Dynamic,
                                 Eigen::StorageOptions order = Eigen::ColMajor) {
         using Eigen::Dynamic;
         using Eigen::Matrix;
