@@ -39,6 +39,11 @@ struct nop {
     void operator()(...) const {}
 };
 
+template<typename T>
+using is_nop = std::is_same<T, nop>;
+template<typename T>
+inline constexpr bool is_nop_v = is_nop<T>::value;
+
 template <class T> struct always_false : std::false_type {};
 
 // check if type is template instance

@@ -91,6 +91,16 @@ template <typename T> void ravel(std::vector<std::vector<T>> &v) {
     v = std::move(result);
 }
 
+/// @brief Returns the index of element in vector.
+template<typename T>
+std::optional<typename std::vector<T>::difference_type> indexof(const std::vector<T>& vec, const T& v) {
+    auto it = std::find(vec.begin(), vec.end(), v);
+    if (it == vec.end()) {
+        return std::nullopt;
+    }
+    return std::distance(vec.begin(), it);
+}
+
 /// @brief Default index type used by Eigen.
 using Eigen::Index;
 
@@ -197,7 +207,7 @@ auto aseigen(std::vector<Scalar, Rest...> &v) {
  * @brief Create Eigen::Matrix from std container with transform applied
  */
 template <typename Derived, typename In, typename... Args>
-void fill_with_std(const Eigen::DenseBase<Derived> &out, In &&in,
+void fill_with_std(Eigen::DenseBase<Derived> &out, In &&in,
                    Args &&... args) {
     if constexpr (has_storage<Derived>::value) {
         out.derived().resize(in.size());

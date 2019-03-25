@@ -54,7 +54,7 @@ template <> struct IO<Format::Ascii> {
      */
     template <typename Scalar, typename IStream>
     static decltype(auto) parse(IStream &is,
-                                const std::vector<Index> &usecols = {},
+                                const std::vector<int> &usecols = {},
                                 const std::string &delim = " \t") {
         SPDLOG_TRACE("parse as ascii, usecols={} delim=\"{}\"", usecols, delim);
         // is.exceptions(std::ios_base::failbit | std::ios_base::badbit);
@@ -65,7 +65,7 @@ template <> struct IO<Format::Ascii> {
         data.clear();
         // parse line by line
         while (std::getline(is, line)) {
-            data.emplace_back(std::vector<double>());
+            data.emplace_back(std::vector<Scalar>());
             for (auto i = line.begin(); i != line.end(); ++i) {
                 if (!isascii(*i)) {
                     throw ParseError("not an ascii file");
@@ -196,12 +196,12 @@ template <> struct IO<Format::Memdump> {
  * @param args The arguments forwarded to call \ref IO<format>::parse().
  */
 template <typename Scalar, Format format, typename... Args>
-decltype(auto) read(const std::string &filepath, Args &&... args) {
+auto read(const std::string &filepath, Args &&... args) {
     SPDLOG_TRACE("read data from {}", filepath);
     std::ifstream fo;
     fo.open(filepath, std::ios_base::binary);
     return IO<format>::template parse<Scalar>(
-        fo, std::forward<decltype(args)>(args)...);
+        fo, FWD(args)...);
 }
 
 } // namespace datatable

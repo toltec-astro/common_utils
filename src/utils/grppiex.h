@@ -89,6 +89,10 @@ private:
         Modes_impl<Mode::omp, Mode::thr, Mode::tbb, Mode::ff, Mode::seq>>;
 
 public:
+    static auto names() {
+        return utils::create<std::vector<std::string>>(self::supported,
+                                                       [](const auto& m) {return std::string(Mode_meta::to_name(m));});
+    }
     static auto enabled() {
         return std::reduce(self::supported.begin(), self::supported.end(),
                            bitmask::bitmask<Mode>{}, std::bit_or<>{});
@@ -153,6 +157,11 @@ public:
 
         return dyn_ex(Mode_meta::from_name(name).value().value, FWD(args)...);
     }
+    /// @brief Returns the GRPPI execution object of default mode.
+    static grppi::dynamic_execution dyn_ex() {
+        return dyn_ex(default_());
+    }
+
 };
 
 /// @brief The default Modes class with all supported modes enabled.

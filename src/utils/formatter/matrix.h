@@ -3,6 +3,8 @@
 #include <Eigen/Core>
 #include <charconv>
 #include <fmt/format.h>
+#include <array>
+#include <vector>
 
 namespace fmt_utils {
 
@@ -293,9 +295,9 @@ struct formatter<fmt_utils::pprint<T, Format>> {
     }
 };
 
-template <typename Derived, typename Char>
+template <typename Derived>
 struct formatter<
-    Derived, Char,
+    Derived, char,
     std::enable_if_t<std::is_base_of_v<Eigen::DenseBase<Derived>, Derived>>>
     : formatter<fmt_utils::pprint<Derived>> {};
 
