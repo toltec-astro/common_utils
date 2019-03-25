@@ -1,10 +1,28 @@
 #pragma once
 #include "../meta.h"
 #include <Eigen/Core>
-#include <charconv>
-#include <fmt/format.h>
 #include <array>
+#include <fmt/format.h>
 #include <vector>
+
+#if defined(__GNUC__) && !defined(__clang__)
+#if __has_include(<charconv>)
+#include <charconv>
+#else
+namespace std {
+template <typename Scalar>
+void from_chars(char *begin, char *end, Scalar &dest) {
+    std::stringstream ss;
+    for (auto it = begin; it != end; ++it) {
+        ss << *it;
+    }
+    ss >> dest;
+}
+} // namespace std
+#endif
+#else
+#include <charconv>
+#endif
 
 namespace fmt_utils {
 
