@@ -2,7 +2,6 @@
 #include "bitmask.h"
 #include "meta.h"
 #include "meta_enum.h"
-#include "utils.h"
 #include <dyn/dynamic_execution.h>
 #include <grppi.h>
 #include <numeric>
@@ -90,8 +89,12 @@ private:
 
 public:
     static auto names() {
-        return utils::create<std::vector<std::string>>(self::supported,
-                                                       [](const auto& m) {return std::string(Mode_meta::to_name(m));});
+        std::vector<std::string> supported_names;
+        supported_names.reserve(self::supported.size());
+        for (const auto & mode: self::supported) {
+            supported_names.emplace_back(Mode_meta::to_name(mode));
+        }
+        return supported_names;
     }
     static auto enabled() {
         return std::reduce(self::supported.begin(), self::supported.end(),

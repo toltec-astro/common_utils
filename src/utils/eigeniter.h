@@ -1,7 +1,5 @@
 #pragma once
-#include "meta.h"
 #include <Eigen/Core>
-#include <cassert>
 #include <iterator>
 
 namespace eigeniter {
@@ -23,7 +21,10 @@ template <typename _Derived> struct EigenIter {
 
     EigenIter(const Eigen::DenseBase<_Derived> &m, difference_type n_)
         : data(const_cast<Scalar *>(m.derived().data())), n(n_),
-          outer(std::decay<Derived>::type::IsRowMajor ? m.cols() : m.rows()),
+          nrows(m.rows()),
+          ncols(m.cols()),
+          outer(m.outerSize()),
+          inner(m.innerSize()),
           outer_stride(m.outerStride()), inner_stride(m.innerStride()) {}
 
     self &operator++() {
@@ -55,10 +56,14 @@ template <typename _Derived> struct EigenIter {
     reference operator[](difference_type n) {
         // index to block
         n += this->n;
-        auto i = n / outer;
-        auto j = n - i * outer;
+        auto i = n / inner;
+        auto j = n - i * inner;
         // index to data
-        return data[i * outer_stride + j * inner_stride];
+        // if constexpr (std::decay_t<Derived>::IsRowMajor) {
+            return data[i * outer_stride + j * inner_stride];
+        // } else {
+        //    return data[i * inner_stride + j * outer_stride];
+        //}
     }
     reference operator*() { return this->operator[](0); }
     // friend operators
@@ -99,11 +104,17 @@ template <typename _Derived> struct EigenIter {
     difference_type n;
 
     auto internals() const {
-        return std::make_tuple(outer, outer_stride, inner_stride);
+        return std::make_tuple(
+                    nrows, ncols,
+                    outer, inner,
+                    outer_stride, inner_stride);
     }
 
 protected:
+    difference_type nrows;
+    difference_type ncols;
     difference_type outer;
+    difference_type inner;
     difference_type outer_stride;
     difference_type inner_stride;
 };

@@ -1,6 +1,6 @@
 #pragma once
+#include "../eigen.h"
 #include "../meta.h"
-#include <Eigen/Core>
 #include <array>
 #include <fmt/format.h>
 #include <vector>
@@ -25,6 +25,11 @@ void from_chars(char *begin, char *end, Scalar &dest) {
 #endif
 
 namespace fmt_utils {
+
+template <typename T> struct scalar_traits {
+    using type = typename std::decay_t<T>;
+    constexpr static bool value = std::is_arithmetic_v<type>;
+};
 
 /// @brief Pretty print Eigen types.
 /// @param s output stream.
@@ -162,17 +167,17 @@ struct pformat {
                             "[", "]");
         }
         // as matrix
-        return IOFormat(StreamPrecision, 0, ", ", "\n", "[", "]", "[\n", "]");
+        return IOFormat(StreamPrecision, 0, ", ", "\n ", "[", "]", "[\n ", "]");
     }
 };
 
 template <typename T, typename Format = pformat> struct pprint {
     using Ref =
         typename Eigen::internal::ref_selector<typename std::conditional<
-            meta::scalar_traits<T>::value,
+            fmt_utils::scalar_traits<T>::value,
             // T is deduced to be scalar type, use Eigen Map
             Eigen::Map<
-                const Eigen::Matrix<typename meta::scalar_traits<T>::type,
+                const Eigen::Matrix<typename fmt_utils::scalar_traits<T>::type,
                                     Eigen::Dynamic, Eigen::Dynamic>>,
             // T is deduced to be Eigen type, use T
             T>::type>::type;
@@ -181,7 +186,7 @@ template <typename T, typename Format = pformat> struct pprint {
      * @brief Pretty print data held by Eigen types.
      */
     template <typename U = T,
-              typename = std::enable_if_t<!meta::scalar_traits<U>::value>>
+              typename = std::enable_if_t<!fmt_utils::scalar_traits<U>::value>>
     pprint(const Eigen::DenseBase<T> &m)
         : matrix(m.derived()), format(Format::format(m.rows(), m.cols())) {}
     /**
@@ -199,8 +204,15 @@ template <typename T, typename Format = pformat> struct pprint {
      * @brief Pretty print data held by std vector
      */
     template <typename U = T,
-              typename = std::enable_if_t<meta::scalar_traits<U>::value>>
+              typename = std::enable_if_t<fmt_utils::scalar_traits<U>::value>>
     pprint(const std::vector<T> &vec) : pprint(vec.data(), vec.size()) {}
+
+    /// This is need to handle VectorBlock specialty
+    template <typename U = T,
+              typename = std::enable_if_t<
+                  eigen_utils::internal::is_vector_block<U>::value>>
+    pprint(const T &m)
+        : matrix(m), format(Format::format(m.rows(), m.cols())) {}
 
     template <typename, typename, typename> friend class fmt::formatter;
 
@@ -252,10 +264,6 @@ struct formatter<fmt_utils::pprint<T, Format>> {
             } else {
                 // parse
                 std::from_chars(ss.data(), ss.data() + ss.size(), dest);
-                // SPDLOG_TRACE("ignored invalid matrix fmt arg: \"{}\"({},
-                // {})",
-                // ((p - ss.data() != ss.size()) || ec !=
-                // std::errc())?ss[0]:ss[0], ss.empty(), ss.size());
             }
         };
         /// e.g 'r9c10s11'
@@ -313,20 +321,19 @@ struct formatter<fmt_utils::pprint<T, Format>> {
     }
 };
 
-template <typename Derived>
-struct formatter<
-    Derived, char,
-    std::enable_if_t<std::is_base_of_v<Eigen::DenseBase<Derived>, Derived>>>
+template <typename Derived, typename Char>
+struct formatter<Derived, Char,
+                 std::enable_if_t<eigen_utils::is_eigen_v<Derived>>>
     : formatter<fmt_utils::pprint<Derived>> {};
 
 template <typename T, typename Char, typename... Rest>
 struct formatter<std::vector<T, Rest...>, Char,
-                 std::enable_if_t<meta::scalar_traits<T>::value>>
+                 std::enable_if_t<fmt_utils::scalar_traits<T>::value>>
     : formatter<fmt_utils::pprint<T>> {};
 
-template <typename T, typename Char, std::size_t size>
+template <typename T, std::size_t size, typename Char>
 struct formatter<std::array<T, size>, Char,
-                 std::enable_if_t<meta::scalar_traits<T>::value>>
+                 std::enable_if_t<fmt_utils::scalar_traits<T>::value>>
     : formatter<fmt_utils::pprint<T>> {
     template <typename FormatContext>
     auto format(const std::array<T, size> &arr, FormatContext &ctx)

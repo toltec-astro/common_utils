@@ -12,7 +12,11 @@
 #  include <functional>
 #endif
 
-#include <Python.h>
+#pragma push_macro("slots")
+#undef slots
+#include "Python.h"
+#pragma pop_macro("slots")
+// #include <Python.h>
 
 #ifndef WITHOUT_NUMPY
 #  define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION

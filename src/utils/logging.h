@@ -5,14 +5,8 @@
 #ifndef SPDLOG_FMT_EXTERNAL
 #define SPDLOG_FMT_EXTERNAL
 #endif
-
-#include "formatter/bitmask.h"
-#include "formatter/common.h"
-#include "formatter/eigeniter.h"
-#include "formatter/matrix.h"
 #include <fmt/ostream.h>
 #include <spdlog/spdlog.h>
-#include <variant>
 
 namespace logging {
 
@@ -36,9 +30,7 @@ decltype(auto) timeit(std::string_view msg, F &&func, Params &&... params) {
         SPDLOG_INFO("**timeit** {} finished in {}ms", msg,
                     elapsed.count() * 1e3);
     };
-    if constexpr (std::is_same<decltype(func(
-                                   std::forward<decltype(params)>(params)...)),
-                               void>::value) {
+    if constexpr (std::is_void_v<std::invoke_result_t<F, Params...>>) {
         // static_assert (is_return_void, "return void") ;
         func(std::forward<decltype(params)>(params)...);
         report_time();

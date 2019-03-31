@@ -3,6 +3,7 @@
 #include "logging.h"
 #include "meta_enum.h"
 #include <fstream>
+#include <Eigen/Core>
 
 namespace datatable {
 
@@ -177,13 +178,19 @@ template <> struct IO<Format::Memdump> {
         }
         SPDLOG_TRACE("memdump shape ({}, {})", nrows, ncols);
         // this is colmajor
-        Matrix<Scalar, Dynamic, Dynamic> ret(nrows, ncols);
-        is.seekg(0, std::ios_base::beg);
-        is.read(reinterpret_cast<char *>(ret.data()), filesize);
+        Matrix<Scalar, Dynamic, Dynamic> ret{nrows, ncols};
+        auto get = [&] (auto* data) {
+            is.seekg(0, std::ios_base::beg);
+            is.read(reinterpret_cast<char *>(data), filesize);
+        };
         if (order & Eigen::RowMajor) {
-            ret = Eigen::Map<Matrix<Scalar, Dynamic, Dynamic, RowMajor>>(
-                ret.data(), nrows, ncols);
+            Matrix<Scalar, Dynamic, Dynamic, RowMajor> tmp{nrows, ncols};
+            get(tmp.data());
+            ret = tmp;
+        } else {
+            get(ret.data());
         }
+        SPDLOG_TRACE("memdump data{:r10c10}", ret);
         return ret;
     }
 };
@@ -201,7 +208,7 @@ auto read(const std::string &filepath, Args &&... args) {
     std::ifstream fo;
     fo.open(filepath, std::ios_base::binary);
     return IO<format>::template parse<Scalar>(
-        fo, FWD(args)...);
+        fo, std::forward<decltype(args)>(args)...);
 }
 
 } // namespace datatable

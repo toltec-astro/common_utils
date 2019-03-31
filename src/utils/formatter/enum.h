@@ -1,7 +1,7 @@
 #pragma once
 #include "../bitmask.h"
-#include "../meta.h"
 #include "../meta_enum.h"
+#include "container.h"
 #include <fmt/format.h>
 
 namespace fmt {
@@ -42,8 +42,8 @@ template <typename T> struct formatter<bitmask::bitmask<T>> {
               typename = std::enable_if_t<
                   decltype(has_meta(meta_enum::type_t<U>{}))::value>>
     auto format_as_str(FormatContextOut &it, const bitmask::bitmask<T> &bm) {
-        using meta = decltype(enum_meta(meta_enum::type_t<U>{}));
-        auto bm_meta = meta::from_value(static_cast<T>(bm));
+        using me = decltype(enum_meta(meta_enum::type_t<U>{}));
+        auto bm_meta = me::from_value(static_cast<T>(bm));
         if (bm_meta) {
             if (spec == 's') {
                 return format_to(it, "{}", bm_meta.value().name);
@@ -58,7 +58,7 @@ template <typename T> struct formatter<bitmask::bitmask<T>> {
         bool sep = false;
         while (mask) {
             if (auto b = mask & bm.bits(); b) {
-                auto v = meta::from_value(static_cast<T>(b)).value();
+                auto v = me::from_value(static_cast<T>(b)).value();
                 it = format_to(it, "{}{}", sep ? "|" : "", v.name);
                 sep = true;
             }
@@ -112,8 +112,12 @@ struct formatter<meta_enum::MetaEnumMember<EnumType>>
             str.erase(str.begin(), ++std::find(str.begin(), str.end(), '='));
             return format_to(it, "{}({})", em.name, str);
         }
-        return formatter<bitmask::bitmask<EnumType>>::format(
-            bitmask::bitmask<EnumType>{em.value}, ctx);
+        if constexpr (bitmask::bitmask_detail::has_value_mask<EnumType>::value) {
+            return formatter<bitmask::bitmask<EnumType>>::format(
+                bitmask::bitmask<EnumType>{em.value}, ctx);
+        } else {
+            return format_to(ctx.out(), "{}", em.name);
+        }
     }
 };
 

@@ -1,7 +1,7 @@
 #pragma once
 
 #include <tuple>
-#include <utility>
+#include <iterator>
 
 namespace meta {
 
@@ -70,6 +70,22 @@ template <typename T>
 struct is_sized<T, std::void_t<decltype(std::declval<T>().size())>>
     : std::true_type {};
 
+template <typename T>
+struct is_iterator {
+  static char test(...);
+
+  template <typename U,
+    typename=typename std::iterator_traits<U>::difference_type,
+    typename=typename std::iterator_traits<U>::pointer,
+    typename=typename std::iterator_traits<U>::reference,
+    typename=typename std::iterator_traits<U>::value_type,
+    typename=typename std::iterator_traits<U>::iterator_category
+  > static long test(U&&);
+
+  constexpr static bool value = std::is_same<decltype(test(std::declval<T>())),long>::value;
+};
+
+
 // return type traits for functors
 template <template <typename...> typename traits, typename F, typename... Args>
 struct rt_has_traits {
@@ -129,12 +145,6 @@ template <typename tuple_t> constexpr auto t2a(tuple_t &&tuple) {
     return std::apply(get_array, std::forward<tuple_t>(tuple));
 }
 
-template <typename T> struct scalar_traits {
-    using type = typename std::decay_t<T>;
-    constexpr static bool value =
-        std::is_arithmetic_v<typename std::decay_t<T>>;
-};
-
 template <class T>
 struct is_c_str
     : std::integral_constant<
@@ -153,6 +163,18 @@ template <typename T>
 struct has_insert<T, std::void_t<decltype(std::declval<T>().insert(
                          std::declval<typename T::value_type>()))>>
     : std::true_type {};
+
+template <typename T, typename size_t = std::size_t, typename = void> struct has_resize : std::false_type {};
+template <typename T, typename size_t>
+struct has_resize<T, size_t, std::void_t<decltype(std::declval<T>().resize(
+                         std::declval<size_t>()))>>
+    : std::true_type {};
+
+template <typename T> struct scalar_traits {
+    using type = typename std::decay_t<T>;
+    constexpr static bool value =
+        std::is_arithmetic_v<type>;
+};
 
 } // namespace meta
 

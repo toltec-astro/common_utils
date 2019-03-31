@@ -1,6 +1,6 @@
 #pragma once
 #include "../eigeniter.h"
-#include "common.h"
+#include "ptr.h"
 
 namespace fmt {
 
@@ -29,9 +29,9 @@ template <typename T> struct formatter<eigeniter::EigenIter<T>> {
         auto it = ctx.out();
         switch (spec) {
         case 'l': {
-            auto [outer, outer_stride, inner_stride] = ei.internals();
-            return format_to(it, "[{}]({} outer={} stride=({}, {}))", ei.n,
-                             ptr(ei.data), outer, outer_stride, inner_stride);
+            auto [nrows, ncols, outer, inner, outer_stride, inner_stride] = ei.internals();
+            return format_to(it, "[{}]({} rc=({}, {}) oi=({}, {}) stride=({}, {}))", ei.n,
+                             ptr(ei.data), nrows, ncols, outer, inner, outer_stride, inner_stride);
         }
         case 's':
             return format_to(it, "[{}]({})", ei.n, ptr(ei.data));
