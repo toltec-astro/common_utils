@@ -1,28 +1,35 @@
 #pragma once
 #include "../logging.h"
 #include "../eigen.h"
+#include "../meta.h"
 
 namespace alg {
 
 template <typename Derived, typename... Args>
-void fill_linspaced(const Eigen::DenseBase<Derived> &m_, Args... args) {
+void fill_linspaced(Eigen::DenseBase<Derived> const &m_, Args... args) {
     using Eigen::Index;
-    using traits = typename eigen_utils::type_traits<Derived>;
     auto &m = const_cast<Eigen::DenseBase<Derived> &>(m_).derived();
+    auto set_linspaced = [&](auto&& m) {
+        if constexpr ((sizeof...(args)) == 0) {
+            m.setLinSpaced(m.size(), 0, m.size() - 1);
+        } else {
+            m.setLinSpaced(m.size(), args...);
+        }
+    };
     if constexpr (Derived::IsVectorAtCompileTime) {
         SPDLOG_TRACE("fill vector");
-        m.setLinSpaced(m.size(), args...);
-    } else if constexpr (traits::is_plain) {
+        set_linspaced(m);
+    } else if constexpr (eigen_utils::is_plain_v<Derived>) {
         // check continugous
-        assert(m.outerStride() == m.innerSize());
+        assert(eigen_utils::is_continugous(m));
         SPDLOG_TRACE("fill matrix");
         // make a map and assign to it
-        traits::VecMap(m.data(), m.size()).setLinSpaced(m.size, args ...);
+        set_linspaced(typename eigen_utils::type_traits<Derived>::VecMap(m.data(), m.size()));
     } else {
         SPDLOG_TRACE("fill matrix expr");
         typename Derived::PlainObject tmp{m.rows(), m.cols()};
         fill_linspaced(tmp, args...);
-        m = std::move(mat);
+        m = std::move(tmp);
     }
 }
 

@@ -48,8 +48,13 @@ struct type_traits<T, std::enable_if_t<is_eigen_v<T>>> : std::true_type {
     constexpr static Eigen::StorageOptions order =
         Derived::IsRowMajor ? Eigen::RowMajor : Eigen::ColMajor;
     // related types
-    using Vector = Eigen::Matrix<typename Derived::Scalar,
-                                 Derived::RowsAtCompileTime, 1, order>;
+    using Vector = std::conditional_t<
+        order == Eigen::RowMajor,
+            Eigen::Matrix<typename Derived::Scalar,
+                1, Derived::ColsAtCompileTime, Eigen::RowMajor>,
+            Eigen::Matrix<typename Derived::Scalar,
+                Derived::RowsAtCompileTime, 1, Eigen::ColMajor>
+        >;
     using Matrix =
         Eigen::Matrix<typename Derived::Scalar, Derived::RowsAtCompileTime,
                       Derived::ColsAtCompileTime, order>;

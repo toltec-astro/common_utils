@@ -31,18 +31,19 @@ template <typename T> struct formatter<bitmask::bitmask<T>> {
             return format_to(it, "{:b}", bm.bits());
         }
         if ((spec == 's') || (spec == 'l')) {
-            return format_as_str(it, bm);
+            if constexpr (decltype(has_meta(meta_enum::type_t<T>{}))::value) {
+                return format_with_meta(it, bm);
+            } else {
+                return format_as_bits(it, bm);
+            }
         }
         return it;
     }
 
     using UnderlyingType = typename std::underlying_type<T>::type;
-
-    template <typename FormatContextOut, typename U = T,
-              typename = std::enable_if_t<
-                  decltype(has_meta(meta_enum::type_t<U>{}))::value>>
-    auto format_as_str(FormatContextOut &it, const bitmask::bitmask<T> &bm) {
-        using me = decltype(enum_meta(meta_enum::type_t<U>{}));
+    template <typename FormatContextOut>
+    auto format_with_meta(FormatContextOut &it, const bitmask::bitmask<T> &bm) {
+        using me = decltype(enum_meta(meta_enum::type_t<T>{}));
         auto bm_meta = me::from_value(static_cast<T>(bm));
         if (bm_meta) {
             if (spec == 's') {
@@ -72,6 +73,11 @@ template <typename T> struct formatter<bitmask::bitmask<T>> {
         }
         return format_to(it, ")");
     }
+    template <typename FormatContextOut>
+    auto format_as_bits(FormatContextOut &it, const bitmask::bitmask<T> &bm) {
+        return format_to(it, "({:b})", bm.bits());
+    }
+
 };
 
 template <typename EnumType, typename UnderlyingTypeIn, size_t size>
@@ -92,6 +98,10 @@ struct formatter<meta_enum::MetaEnum<EnumType, UnderlyingTypeIn, size>> {
         str.erase(std::remove_if(str.begin(), str.end(),
                                  [](const auto &c) { return std::isspace(c); }),
                   str.end());
+        if (str.empty()) {
+            return format_to(it, "{}({})", em.name,
+                             static_cast<UnderlyingTypeIn>(em.value));
+        }
         return format_to(it, "{}({})", em.name, str);
     }
 };
@@ -110,9 +120,14 @@ struct formatter<meta_enum::MetaEnumMember<EnumType>>
                                [](const auto &c) { return std::isspace(c); }),
                 str.end());
             str.erase(str.begin(), ++std::find(str.begin(), str.end(), '='));
+            if (str.empty()) {
+                return format_to(it, "{}({})", em.name,
+                                 static_cast<int>(em.value));
+            }
             return format_to(it, "{}({})", em.name, str);
         }
-        if constexpr (bitmask::bitmask_detail::has_value_mask<EnumType>::value) {
+        if constexpr (bitmask::bitmask_detail::has_value_mask<
+                          EnumType>::value) {
             return formatter<bitmask::bitmask<EnumType>>::format(
                 bitmask::bitmask<EnumType>{em.value}, ctx);
         } else {

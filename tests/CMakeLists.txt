@@ -8,6 +8,8 @@ set_target_properties(common_utils_test
 target_sources(common_utils_test
     PRIVATE
         main.cpp
+        formatter.cpp
+        eigeniter.cpp
     )
 target_link_libraries(common_utils_test
     PRIVATE

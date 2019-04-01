@@ -205,6 +205,22 @@ OStream &operator<<(OStream &os, const U<T, Rest...> &cont) {
         if (sep) {
             os << ", ";
         }
+        sep = true;
+        os << fmt::format("{}", v);
+    }
+    os << "}";
+    return os;
+}
+/// specialize for std::array
+template <typename OStream, typename T, std::size_t size>
+OStream &operator<<(OStream &os, const std::array<T, size> &cont) {
+    os << "{";
+    bool sep = false;
+    for (const auto &v : cont) {
+        if (sep) {
+            os << ", ";
+        }
+        sep = true;
         os << fmt::format("{}", v);
     }
     os << "}";

@@ -1,99 +1,16 @@
 #include <benchmark/benchmark.h>
 #include <gtest/gtest.h>
-#include <iostream>
-#include <utils/grppiex.h>
+
+#include "utils/algorithm/ei_linspaced.h"
+#include "utils/algorithm/ei_polyfit.h"
+#include "utils/algorithm/ei_stats.h"
+#include "utils/formatter/container.h"
+#include "utils/formatter/enum.h"
+#include "utils/formatter/matrix.h"
+#include "utils/grppiex.h"
+#include "utils/utils.h"
 
 namespace {
-
-TEST(formatter, variant) {
-    std::variant<bool, int, double, const char *, std::string> v;
-    using namespace std::literals;
-    v = false;
-    SPDLOG_TRACE("v={}", v);
-    v = -1;
-    SPDLOG_TRACE("v={}", v);
-    v = 2e4;
-    SPDLOG_TRACE("v={}", v);
-    v = "v";
-    SPDLOG_TRACE("v={}", v);
-    v = "test"s;
-    SPDLOG_TRACE("v={}", v);
-}
-
-TEST(formatter, pprint) {
-    using fmt_utils::pprint;
-    Eigen::MatrixXd m{5, 10};
-    Eigen::VectorXd::Map(m.data(), m.size())
-        .setLinSpaced(m.size(), 0, m.size());
-    SPDLOG_TRACE("default m{}", m);
-    SPDLOG_TRACE("m{}", pprint{m});
-    SPDLOG_TRACE("m{:r1c5}", pprint{m});
-    SPDLOG_TRACE("m{:r1c}", pprint{m});
-    SPDLOG_TRACE("m{:rc1}", pprint{m});
-    auto c = m.col(0);
-    SPDLOG_TRACE("default c{}", c);
-    SPDLOG_TRACE("c{:}", pprint{c});
-    SPDLOG_TRACE("c{:rc}", pprint{c});
-    SPDLOG_TRACE("c{:s}", pprint{c});
-    SPDLOG_TRACE("c{:s3}", pprint{c});
-    std::vector<double> v = {0, 1, 2, 3, 4, 5, 6, 7};
-    SPDLOG_TRACE("default v{:s4}", v);
-    SPDLOG_TRACE("v{:}", pprint{v});
-    SPDLOG_TRACE("v{:rc}", pprint{v});
-    SPDLOG_TRACE("v{:s}", pprint{v});
-    SPDLOG_TRACE("v{:s3}", pprint{v});
-}
-
-TEST(formatter, pointer) {
-    int a = 1;
-    SPDLOG_TRACE("a={}", a);
-    SPDLOG_TRACE("*a@{}", fmt::ptr(&a));
-    SPDLOG_TRACE("*a@{:x}", fmt_utils::ptr(&a));
-    SPDLOG_TRACE("*a@{:y}", fmt_utils::ptr(&a));
-    SPDLOG_TRACE("*a@{:z}", fmt_utils::ptr(&a));
-    EXPECT_NO_THROW(fmt::format("{}", fmt_utils::ptr(&a)));
-    EXPECT_NO_THROW(fmt::format("{:y}", fmt_utils::ptr(&a)));
-    EXPECT_NO_THROW(fmt::format("{:z}", fmt_utils::ptr(&a)));
-    EXPECT_EQ(fmt::format("a@{}", fmt_utils::ptr(&a)),
-              fmt::format("a@{:z}", fmt_utils::ptr(&a)));
-}
-TEST(formatter, eigeniter) {
-    Eigen::MatrixXd m(5, 5);
-    auto [begin, end] = eigeniter::iters(m);
-    SPDLOG_TRACE("iters begin={:s} end={:s}", begin, end);
-    SPDLOG_TRACE("begin={:l} end={:l}", begin, end);
-    EXPECT_NO_THROW(fmt::format("{}", begin));
-    EXPECT_NO_THROW(fmt::format("{:s}", begin));
-    EXPECT_EQ(fmt::format("{}", end), fmt::format("{:l}", end));
-}
-
-TEST(formatter, bitmask) {
-    auto bm = grppiex::Mode::seq | grppiex::Mode::omp;
-    SPDLOG_TRACE("bitmask: {}", bm);
-    SPDLOG_TRACE("bitmask: {:d}", bm);
-    SPDLOG_TRACE("bitmask: {:s}", bm);
-    SPDLOG_TRACE("par: {:d}", bitmask::bitmask{grppiex::Mode::par});
-    SPDLOG_TRACE("par: {:s}", bitmask::bitmask{grppiex::Mode::par});
-    SPDLOG_TRACE("par: {:l}", bitmask::bitmask{grppiex::Mode::par});
-    EXPECT_EQ(fmt::format("{}", bm), fmt::format("{:l}", bm));
-}
-
-TEST(meta_enum, meta) {
-    using meta = grppiex::Mode_meta;
-    SPDLOG_TRACE("{}: {}", meta::name, meta::to_name(grppiex::Mode::par));
-    SPDLOG_TRACE("{}: {}", meta::name, meta::to_name(grppiex::Mode::omp));
-    SPDLOG_TRACE("{}: {}", meta::name,
-                 meta::to_name(static_cast<grppiex::Mode>(0)));
-    SPDLOG_TRACE("enum: {}", meta::meta);
-    SPDLOG_TRACE("par: {:d}", meta::from_name("par"));
-    SPDLOG_TRACE("par: {:s}", meta::from_name("par"));
-    SPDLOG_TRACE("par: {:l}", meta::from_name("par"));
-    SPDLOG_TRACE("par val: {:s}", grppiex::Mode::par);
-    SPDLOG_TRACE("unknown: {}", meta::from_name("unknown"));
-    EXPECT_NO_THROW(fmt::format("{}", meta::meta));
-    EXPECT_NO_THROW(fmt::format("{:s}", meta::from_name("omp")));
-    EXPECT_NO_THROW(fmt::format("{}", meta::from_name("xyz")));
-}
 
 TEST(grppiex, modes) {
     SPDLOG_TRACE("using default modes: {:s}", grppiex::modes::enabled());
@@ -118,11 +35,12 @@ TEST(grppiex, modes) {
 
 TEST(utils, create) {
     auto modes = grppiex::Mode_meta::members;
-    for (const auto & m : modes) {
+    for (const auto &m : modes) {
         SPDLOG_TRACE("modes: {}", m);
     }
-    auto vm = utils::create<std::vector<std::string>>(modes, [](const auto& m){return std::string(m.name);});
-    for (const auto & m : vm) {
+    auto vm = utils::create<std::vector<std::string>>(
+        modes, [](const auto &m) { return std::string(m.name); });
+    for (const auto &m : vm) {
         SPDLOG_TRACE("vector modes: {}", m);
     }
     fmt::format("{}", vm);
@@ -142,84 +60,69 @@ TEST(utils, create) {
     SPDLOG_TRACE("test after: {}", test);
     SPDLOG_TRACE("cs: {}", cs);
     std::copy(std::make_move_iterator(test.begin()),
-                   std::make_move_iterator(test.end()),
-                   std::inserter(cs, cs.end()));
+              std::make_move_iterator(test.end()), std::inserter(cs, cs.end()));
     SPDLOG_TRACE("test after: {}", test);
     SPDLOG_TRACE("cs: {}", cs);
 }
 
-TEST(utils, eigeniter) {
-    Eigen::MatrixXd m{5, 10};
-    Eigen::VectorXd::Map(m.data(), m.size())
-        .setLinSpaced(m.size(), 0, m.size() - 1);
-    SPDLOG_TRACE("m{}", m);
-    auto [begin, end] = eigeniter::iters(m);
-    for (auto it = begin; it != end; ++it) {
-        SPDLOG_TRACE("v={}", *it);
-    }
-}
-
-TEST(utils, meanstd) {
+TEST(alg, meanstd) {
     Eigen::VectorXd m;
     m.setLinSpaced(100, 0, 99);
     SPDLOG_TRACE("m{}", m);
-    auto [mean1, std1] = utils::meanstd(m);
+    auto [mean1, std1] = alg::meanstd(m);
     SPDLOG_TRACE("mean={} std={}", mean1, std1);
     Eigen::VectorXI n;
     n.setLinSpaced(10, 1, 10);
     SPDLOG_TRACE("n{}", n);
-    auto [mean, std] = utils::meanstd(n);
-    auto [med, mad] = utils::medmad(n);
-    SPDLOG_TRACE(
-            "dmean = {} mean = {} std={}, median={}, mad={}",
-            n.mean(), mean, std, med, mad);
+    auto [mean, std] = alg::meanstd(n);
+    auto [med, mad] = alg::medmad(n);
+    SPDLOG_TRACE("dmean = {} mean = {} std={}, median={}, mad={}", n.mean(),
+                 mean, std, med, mad);
 }
 
-TEST(utils, fill_linspaced) {
+TEST(alg, fill_linspaced) {
     Eigen::MatrixXd m{5, 10};
-    utils::fill_linspaced(m, 0, 98);
+    alg::fill_linspaced(m, 0, 98);
     SPDLOG_TRACE("m{}", m);
-    utils::fill_linspaced(m.topLeftCorner(2, 2), 0, 98);
-    utils::fill_linspaced(m.topRightCorner(2, 2), 0, 98);
+    alg::fill_linspaced(m.topLeftCorner(2, 2), 0, 98);
+    alg::fill_linspaced(m.topRightCorner(2, 2), 0, 98);
     SPDLOG_TRACE("m{:rc}", m);
-    utils::fill_linspaced(m.bottomRows(3), 0, 98);
+    alg::fill_linspaced(m.bottomRows(3), 0, 98);
     SPDLOG_TRACE("m{:rc}", m);
-    utils::fill_linspaced(m.row(0).head(2), 0, 19);
+    alg::fill_linspaced(m.row(0).head(2), 0, 19);
     SPDLOG_TRACE("m{}", m);
-    utils::fill_linspaced(m.col(1).segment(2, 2), 0, 19);
+    alg::fill_linspaced(m.col(1).segment(2, 2), 0, 19);
     SPDLOG_TRACE("m{}", m);
     Eigen::VectorXd v{20};
-    utils::fill_linspaced(v, 0, 19);
+    alg::fill_linspaced(v, 0, 19);
     SPDLOG_TRACE("v{}", v);
-    utils::fill_linspaced(v.segment(2, 2), 0, 19);
+    alg::fill_linspaced(v.segment(2, 2), 0, 19);
     SPDLOG_TRACE("v{}", v);
-
 }
 
-TEST(utils, std_eigen) {
+TEST(eigen_utils, std_eigen) {
     Eigen::MatrixXd m{5, 10};
-    utils::fill_linspaced(m, 0, 98);
-    SPDLOG_TRACE("m{:r0c0s0}", m);
-    SPDLOG_TRACE("m{:r0c0s0}", fmt_utils::pprint(m));
-    auto v1 = utils::tostd(m);
+    alg::fill_linspaced(m, 0, 98);
+    SPDLOG_TRACE("m{}", m);
+    auto v1 = eigen_utils::tostd(m);
     SPDLOG_TRACE("v1{}", v1);
-    auto v2 = utils::tostd(m.topRightCorner(2, 2));
+    auto v2 = eigen_utils::tostd(m.topRightCorner(2, 2));
     SPDLOG_TRACE("v2{}", v2);
-    auto v3 = utils::tostd(m.row(1).segment(1, 2));
+    auto v3 = eigen_utils::tostd(m.row(1).segment(1, 2));
     SPDLOG_TRACE("v3{}", v3);
-    auto m1 = utils::aseigen(v3);
+    auto m1 = eigen_utils::asvec(v3);
     SPDLOG_TRACE("m1{}", m1);
     SPDLOG_TRACE("m1*m1{}", m1.array().square());
 }
 
-TEST(utis, polyfit) {
+TEST(alg, polyfit) {
     Eigen::MatrixXd m{10, 2};
-    utils::fill_linspaced(m, 0, 2);
+    alg::fill_linspaced(m, 0, 2);
     SPDLOG_TRACE("m{:s0}", m);
-    auto [p1, r1] = utils::polyfit(m.col(0), m.col(1));
+    auto [p1, r1] = alg::polyfit(m.col(0), m.col(1));
     SPDLOG_TRACE("linear fit: p={} r={}", p1, r1);
     Eigen::MatrixXd det;
-    auto [p2, r2] = utils::polyfit(m.col(0), m.col(1), 3, &det);
+    auto [p2, r2] = alg::polyfit(m.col(0), m.col(1), 3, &det);
     SPDLOG_TRACE("linear fit: det={}", det);
 }
 

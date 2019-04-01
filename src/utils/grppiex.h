@@ -2,6 +2,7 @@
 #include "bitmask.h"
 #include "meta.h"
 #include "meta_enum.h"
+#include "logging.h"
 #include <dyn/dynamic_execution.h>
 #include <grppi.h>
 #include <numeric>

@@ -58,12 +58,7 @@ template <typename _Derived> struct EigenIter {
         n += this->n;
         auto i = n / inner;
         auto j = n - i * inner;
-        // index to data
-        // if constexpr (std::decay_t<Derived>::IsRowMajor) {
-            return data[i * outer_stride + j * inner_stride];
-        // } else {
-        //    return data[i * inner_stride + j * outer_stride];
-        //}
+        return data[i * outer_stride + j * inner_stride];
     }
     reference operator*() { return this->operator[](0); }
     // friend operators
