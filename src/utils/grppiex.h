@@ -98,7 +98,8 @@ public:
         return supported_names;
     }
     static auto enabled() {
-        return std::reduce(self::supported.begin(), self::supported.end(),
+        // gcc does not support reduce
+        return std::accumulate(self::supported.begin(), self::supported.end(),
                            bitmask::bitmask<Mode>{}, std::bit_or<>{});
     }
     static auto default_(bitmask::bitmask<Mode> mode) {
