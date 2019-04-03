@@ -2,8 +2,8 @@
 
 #include "logging.h"
 #include "meta_enum.h"
-#include <fstream>
 #include <Eigen/Core>
+#include <fstream>
 
 namespace datatable {
 
@@ -14,6 +14,12 @@ using Index = Eigen::Index;
 struct ParseError : public std::runtime_error {
     using std::runtime_error::runtime_error;
 };
+
+/// @brief Throw when there is an error when dump data table.
+struct DumpError : public std::runtime_error {
+    using std::runtime_error::runtime_error;
+};
+
 #ifdef DOXYGEN
 /**
  * @enum Format
@@ -46,6 +52,70 @@ template <Format format> struct IO {
  * @brief Ascii table IO.
  */
 template <> struct IO<Format::Ascii> {
+    /**
+     * @brief Dump as ascii table.
+     * @param is Input stream to be parsed.
+     * @param usecols The indexes of columns to include in the output.
+     *  Python-style negative indexes are supported.
+     * @param delim Delimiter characters. Default is space.
+     */
+    template <typename OStream, typename Derived>
+    static decltype(auto)
+    dump(OStream &os, const Eigen::EigenBase<Derived> &data,
+        const std::vector<std::string> &colnames = {},
+        const std::vector<int> &usecols = {}, char delim = ' ') {
+        char newline = '\n';
+        char comment = '#';
+        auto nrows = data.rows();
+        auto ncols = data.cols();
+        auto ncols_use = ncols;
+        SPDLOG_TRACE(
+            "dump as ascii, nrows={}, ncols={}, usecols={} delim=\"{}\"", nrows,
+            ncols, usecols, delim);
+        // get the usecols
+        if (!usecols.empty()) {
+            for (auto i : usecols) {
+                if ((i < -ncols) || (i >= ncols))
+                    throw ParseError(fmt::format(
+                        "invalid column index {} for table of ncols={}", i,
+                        ncols));
+            }
+            ncols_use = usecols.size();
+            SPDLOG_TRACE("using {} cols out of {}", ncols_use, ncols);
+        }
+        // write header
+        if (!colnames.empty()) {
+            if (colnames.size() != ncols_use) {
+                throw DumpError(fmt::format(
+                    "number of colnames {} does not match number of columns {}",
+                    colnames.size(), ncols_use));
+            }
+            os << comment;
+            for (const auto &name : colnames) {
+                os << delim << name;
+            }
+            os << newline;
+        }
+        // write body
+        for (Index i = 0; i < nrows; ++i) {
+            if (usecols.empty()) {
+                for (std::size_t j = 0; j < ncols; ++j) {
+                    os << delim << data.derived().coeff(i, j);
+                }
+            } else {
+                for (std::size_t j = 0; j < usecols.size(); ++j) {
+                    auto v = usecols[j];
+                    if (v < 0) {
+                        v += ncols;
+                    }
+                    os << delim << data.derived().coeff(i, v);
+                }
+            }
+            os << newline;
+        }
+        return os;
+    }
+
     /**
      * @brief Parse as Ascii table.
      * @param is Input stream to be parsed.
@@ -179,7 +249,7 @@ template <> struct IO<Format::Memdump> {
         SPDLOG_TRACE("memdump shape ({}, {})", nrows, ncols);
         // this is colmajor
         Matrix<Scalar, Dynamic, Dynamic> ret{nrows, ncols};
-        auto get = [&] (auto* data) {
+        auto get = [&](auto *data) {
             is.seekg(0, std::ios_base::beg);
             is.read(reinterpret_cast<char *>(data), filesize);
         };
@@ -209,6 +279,20 @@ auto read(const std::string &filepath, Args &&... args) {
     fo.open(filepath, std::ios_base::binary);
     return IO<format>::template parse<Scalar>(
         fo, std::forward<decltype(args)>(args)...);
+}
+
+/**
+ * @brief Write table data to file.
+ * @tparam Format The file format from \ref Format.
+ * @param filepath The path of the output file.
+ * @param args The arguments forwarded to call \ref IO<format>::dump().
+ */
+template <Format format, typename... Args>
+void write(const std::string &filepath, Args &&... args) {
+    SPDLOG_TRACE("write data to {}", filepath);
+    std::ofstream fo;
+    fo.open(filepath, std::ios_base::binary);
+    IO<format>::dump(fo, std::forward<decltype(args)>(args)...);
 }
 
 } // namespace datatable

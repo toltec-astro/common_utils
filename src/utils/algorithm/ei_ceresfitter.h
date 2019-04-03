@@ -62,7 +62,9 @@ struct ParamSetting {
 /// @tparam _Scalar The numeric type to use.
 template <Index _NP = Dynamic, Index _ND_IN = Dynamic, Index _ND_OUT = Dynamic,
           typename _Scalar=double> struct Fitter {
-    enum { NP = _NP, ND_IN = _ND_IN, ND_OUT = _ND_OUT};
+    constexpr static Index NP = _NP;
+    constexpr static Index ND_IN = _ND_IN;
+    constexpr static Index ND_OUT = _ND_OUT;
     using Scalar = _Scalar;
     /*
     using InputType = Eigen::Matrix<Scalar, NP, 1>;
@@ -125,9 +127,9 @@ template <Index _NP = Dynamic, Index _ND_IN = Dynamic, Index _ND_OUT = Dynamic,
         for (Index i = 0; i < NP; ++i) {
             auto p = settings[i];
             if (p.bounded) {
-                problem->SetParameterLowerBound(params.data(), static_cast<int>(i),
+                problem->SetParameterLowerBound(params.data(), i,
                                                 p.lower_bound);
-                problem->SetParameterUpperBound(params.data(), static_cast<int>(i),
+                problem->SetParameterUpperBound(params.data(), i,
                                                 p.upper_bound);
             }
             if (p.fixed) {
@@ -152,7 +154,7 @@ template <Index _NP = Dynamic, Index _ND_IN = Dynamic, Index _ND_OUT = Dynamic,
 };
 
 template <typename Fitter_, typename DerivedA, typename DerivedB, typename DerivedC, typename DerivedD>
-void fit(const Eigen::DenseBase<DerivedA>& xdata_,
+bool fit(const Eigen::DenseBase<DerivedA>& xdata_,
          const Eigen::DenseBase<DerivedB>& ydata_,
          const Eigen::DenseBase<DerivedC>& yerr_,
          Eigen::DenseBase<DerivedD> const & params_
@@ -163,10 +165,10 @@ void fit(const Eigen::DenseBase<DerivedA>& xdata_,
     auto& ydata = ydata_.derived();
     auto& yerr = yerr_.derived();
     // make sure the data are continuous
-    if (!(eigen_utils::is_continugous(xdata) &&
-          eigen_utils::is_continugous(ydata) &&
-          eigen_utils::is_continugous(yerr)  &&
-          eigen_utils::is_continugous(params)
+    if (!(eigen_utils::is_contiguous(xdata) &&
+          eigen_utils::is_contiguous(ydata) &&
+          eigen_utils::is_contiguous(yerr)  &&
+          eigen_utils::is_contiguous(params)
           )) {
         throw std::runtime_error("fit does not work with non-continugous data");
     }
@@ -215,7 +217,8 @@ void fit(const Eigen::DenseBase<DerivedA>& xdata_,
     SPDLOG_TRACE("{}", summary.BriefReport());
     SPDLOG_TRACE("fitted paramblock {}",
             fmt_utils::pprint(paramblock, Fitter_::NP));
-    SPDLOG_DEBUG("fitted params {}", params);
+    SPDLOG_DEBUG("fitted params {}", params.derived());
+    return summary.termination_type == ceres::CONVERGENCE;
 }
 
 

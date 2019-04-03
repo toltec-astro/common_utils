@@ -110,12 +110,24 @@ public:
             fmt::format("unable to get grppi execution mode {:s}", mode));
     }
     /// @brief Returns the default GRPPI execution mode from all supported
-    /// modes;
+    /// modes
     static auto default_() { return self::supported[0]; }
     /// @brief Returns the default GRPPI execution mode name;
     template <typename... Args> static auto default_name(Args... args) {
-        return "";
-        // return Mode_meta::to_name(default_(args...));
+        return Mode_meta::to_name(default_(args...));
+    }
+    /// @brief Returns the GRPPI execution mode for given name
+    static auto from_name(std::string_view name) {
+        auto mode_meta = Mode_meta::from_name(name);
+        if (!mode_meta)
+            throw std::runtime_error(fmt::format(
+                "\"{:s}\" is not a valid grppi execution mode", name));
+        auto mode = mode_meta.value().value;
+        if (mode & enabled()) {
+            return mode;
+        }
+        throw std::runtime_error(fmt::format(
+            "grppi execution mode \"{:s}\" is not supported.", mode));
     }
 
     /// @brief Returns the GRPPI execution object of \p mode.
@@ -154,12 +166,7 @@ public:
     template <typename... Args>
     static grppi::dynamic_execution dyn_ex(std::string_view name,
                                            Args &&... args) {
-        auto mode = Mode_meta::from_name(name);
-        if (!mode)
-            throw std::runtime_error(fmt::format(
-                "\"{:s}\" is not a valid grppi execution mode", name));
-
-        return dyn_ex(Mode_meta::from_name(name).value().value, FWD(args)...);
+        return dyn_ex(from_name(name), FWD(args)...);
     }
     /// @brief Returns the GRPPI execution object of default mode.
     static grppi::dynamic_execution dyn_ex() {
@@ -171,6 +178,11 @@ public:
 /// @brief The default Modes class with all supported modes enabled.
 /// @see \ref Modes
 using modes = Modes<>;
+
+/// @brief Returns the mode with name
+inline Mode mode(std::string_view name) {
+    return modes::from_name(name);
+}
 
 /// @brief Returns the default GRPPI mode from all supported modes.
 /// @see \ref Modes

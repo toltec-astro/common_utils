@@ -50,17 +50,21 @@ struct type_traits<T, std::enable_if_t<is_eigen_v<T>>> : std::true_type {
     // related types
     using Vector = std::conditional_t<
         order == Eigen::RowMajor,
-            Eigen::Matrix<typename Derived::Scalar,
-                1, Derived::ColsAtCompileTime, Eigen::RowMajor>,
-            Eigen::Matrix<typename Derived::Scalar,
-                Derived::RowsAtCompileTime, 1, Eigen::ColMajor>
-        >;
+        Eigen::Matrix<typename Derived::Scalar, 1, Derived::ColsAtCompileTime,
+                      Eigen::RowMajor>,
+        Eigen::Matrix<typename Derived::Scalar, Derived::RowsAtCompileTime, 1,
+                      Eigen::ColMajor>>;
     using Matrix =
         Eigen::Matrix<typename Derived::Scalar, Derived::RowsAtCompileTime,
                       Derived::ColsAtCompileTime, order>;
     using VecMap = Eigen::Map<Vector, Eigen::AlignmentType::Unaligned>;
     using MatMap = Eigen::Map<Matrix, Eigen::AlignmentType::Unaligned>;
 };
+
+template <typename Derived>
+bool is_contiguous(const Eigen::DenseBase<Derived> &m) {
+    return (m.outerStride() == m.innerSize()) && (m.innerStride() == 1);
+}
 
 /**
  * @brief Create std::vector from data held by Eigen types. Copies the data.
@@ -105,6 +109,36 @@ auto asvec(std::vector<Scalar, Rest...> &v) {
     return Eigen::Map<Eigen::Matrix<Scalar, Eigen::Dynamic, 1, order>>(
         v.data(), v.size());
 }
+/**
+ * @brief Create Eigen::Map from std::vector.
+ * @tparam order The storage order to follow when mapping the data.
+ * Default is Eigen::ColMajor.
+ */
+template <Eigen::StorageOptions order = Eigen::ColMajor, typename Scalar,
+          typename... Rest>
+auto asvec(const std::vector<Scalar, Rest...> &v) {
+    return Eigen::Map<const Eigen::Matrix<Scalar, Eigen::Dynamic, 1, order>>(
+        v.data(), v.size());
+}
+
+/**
+ * @brief Create Eigen::Map from Eigen Matrix.
+ * @tparam order The storage order to follow when mapping the data.
+ * Default is Eigen::ColMajor.
+ */
+template <Eigen::StorageOptions order = Eigen::ColMajor, typename Derived>
+auto asvec(const Eigen::DenseBase<Derived> &v_) {
+    static_assert(is_plain_v<Derived>,
+                  "ASVEC ONLY IMPLEMENTED FOR PLAIN OBJECT");
+    auto &v = const_cast<Eigen::DenseBase<Derived> &>(v_).derived();
+    if (is_contiguous(v)) {
+        using Scalar = typename Derived::Scalar;
+        return Eigen::Map<Eigen::Matrix<Scalar, Eigen::Dynamic, 1, order>>(
+            v.data(), v.size());
+    }
+    throw std::runtime_error(
+        "not able to create vector view for data in non-contiguous memory");
+}
 
 /**
  * @brief Create Eigen::Map from std::vector with shape
@@ -119,11 +153,6 @@ auto asmat(std::vector<Scalar, Rest...> &v, Eigen::Index nrows,
     assert(nrows * ncols == v.size());
     return Eigen::Map<Eigen::Matrix<Scalar, Dynamic, Dynamic, order>>(
         v.data(), nrows, ncols);
-}
-
-template <typename Derived>
-bool is_continugous(const Eigen::DenseBase<Derived>& m) {
-    return (m.outerStride() == m.innerSize()) && (m.innerStride() == 1);
 }
 
 } // namespace eigen_utils

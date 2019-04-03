@@ -26,7 +26,7 @@ auto iterclip(F1 &&statsfunc, F2 &&selectfunc, int max_iter = 20) {
         using Eigen::Index;
         // copy the data
         auto clipped = eiu::tostd(data);
-        SPDLOG_TRACE("size before clip: {}", clipped.size());
+        // SPDLOG_TRACE("size before clip: {}", clipped.size());
         double center = 0;
         double std = 0;
         bool converged = false;
@@ -58,7 +58,7 @@ auto iterclip(F1 &&statsfunc, F2 &&selectfunc, int max_iter = 20) {
                               }),
                           clipped.end());
             if (clipped.size() == old_size) {
-                SPDLOG_TRACE("clipping coverged after {} iters", i + 1);
+                // SPDLOG_TRACE("clipping coverged after {} iters", i + 1);
                 converged = true;
                 break; // converged
             }
@@ -68,21 +68,11 @@ auto iterclip(F1 &&statsfunc, F2 &&selectfunc, int max_iter = 20) {
             SPDLOG_DEBUG("clip fails to converge after {} iterations",
                          max_iter);
         }
-        SPDLOG_TRACE("size after clip: {}", clipped.size());
-        // auto [center, std] = std::forward<decltype(stats)>(stats)(data);
-        // SPDLOG_TRACE("indexofthresh m={} s={}", center, std);
+        // SPDLOG_TRACE("size after clip: {}", clipped.size());
         // get the original selected indexes
         std::vector<Index> selectindex;
-        /*
-        Eigen::RowVectorXd test{100};
-        auto [b, e] = eigeniter::iters(test);
-        for (auto it = b; it != e; ++it) {
-             SPDLOG_TRACE("iter: {}", it);
-        }
-        */
         auto [begin, end] = eigeniter::iters(data);
         for (auto it = begin; it != end; ++it) {
-            // SPDLOG_TRACE("iter: {}", it);
             auto select = FWD(selectfunc)(*it, center, std);
             // SPDLOG_TRACE("select {} v={}, m={} s={}", select, *it, center, std);
             if (select) {

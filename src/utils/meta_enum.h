@@ -197,14 +197,15 @@ constexpr std::array<EnumType, size> resolveEnumValuesArray(
             return meta_enum::internal::resolveEnumValuesArray<                \
                 Type, UnderlyingType, internal_size()>({__VA_ARGS__});         \
         }());                                                                  \
-        constexpr static auto to_name = [](Type e) {                           \
+        [[maybe_unused]] constexpr static auto to_name = [](Type e) {          \
             for (const auto &member : meta.members) {                          \
                 if (member.value == e)                                         \
                     return member.name;                                        \
             }                                                                  \
             return std::string_view("__INVALID_ENUM_VAL__");                   \
         };                                                                     \
-        constexpr static auto from_name = [](std::string_view s)               \
+        [[maybe_unused]] constexpr static auto from_name =                     \
+            [](std::string_view s)                                             \
             -> std::optional<meta_enum::MetaEnumMember<Type>> {                \
             for (const auto &member : meta.members) {                          \
                 if (member.name == s)                                          \
@@ -212,7 +213,7 @@ constexpr std::array<EnumType, size> resolveEnumValuesArray(
             }                                                                  \
             return std::nullopt;                                               \
         };                                                                     \
-        constexpr static auto from_value =                                     \
+        [[maybe_unused]] constexpr static auto from_value =                    \
             [](Type v) -> std::optional<meta_enum::MetaEnumMember<Type>> {     \
             for (const auto &member : meta.members) {                          \
                 if (member.value == v)                                         \
@@ -220,7 +221,7 @@ constexpr std::array<EnumType, size> resolveEnumValuesArray(
             }                                                                  \
             return std::nullopt;                                               \
         };                                                                     \
-        constexpr static auto from_index = [](size_t i) {                      \
+        [[maybe_unused]] constexpr static auto from_index = [](size_t i) {     \
             std::optional<meta_enum::MetaEnumMember<Type>> result;             \
             if (i < meta.members.size())                                       \
                 result = meta.members[i];                                      \

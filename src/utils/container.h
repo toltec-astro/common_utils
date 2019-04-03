@@ -4,7 +4,7 @@
 #include "eigeniter.h"
 #include "eigen.h"
 
-namespace utils {
+namespace container_utils {
 
 /// @brief Populate data using data in existing container.
 /// Optioanally, when \p func is provided, the elements are mapped using
@@ -105,12 +105,13 @@ Out create(In &&in, F &&... func) {
     }
 }
 
-/// @brief Returns true if \p value ends with \p ending.
-inline bool endswith(std::string const &value, std::string const &ending) {
-    if (ending.size() > value.size()) {
+/// @brief Returns true if \p v ends with \p ending.
+template<typename T, typename U>
+bool endswith(const T &v, const U &ending) {
+    if (ending.size() > v.size()) {
         return false;
     }
-    return std::equal(ending.rbegin(), ending.rend(), value.rbegin());
+    return std::equal(ending.rbegin(), ending.rend(), v.rbegin());
 }
 
 /// @brief Rearrange nested vector to a flat one *in place*.
@@ -134,6 +135,39 @@ std::optional<typename std::vector<T>::difference_type> indexof(const std::vecto
         return std::nullopt;
     }
     return std::distance(vec.begin(), it);
+}
+
+/// @brief Create [index, element] like enumerate for container.
+template<typename T>
+std::unordered_map<std::size_t, typename T::value_type> unordered_enumerate(const T& v) {
+    std::unordered_map<std::size_t, typename T::value_type> ret;
+    std::size_t i = 0;
+    for (auto it = v.begin(); it != v.cend(); ++it) {
+        ret.insert({i, *it});
+        ++i;
+    }
+    return ret;
+}
+
+/// @brief Create [index, element] like enumerate for container.
+template<typename T>
+std::vector<std::pair<std::size_t, typename T::value_type>> enumerate(const T& v) {
+    std::vector<std::pair<std::size_t, typename T::value_type>> ret;
+    for (std::size_t i = 0; i < v.size(); ++i) {
+        ret.emplace_back(std::piecewise_construct,
+                         std::forward_as_tuple(i),
+                         std::forward_as_tuple(v[i]));
+    }
+    return ret;
+}
+
+/// @brief Create index sequence for container.
+template<typename T>
+std::vector<std::size_t> index(const T& v) {
+    auto size = v.size();
+    std::vector<std::size_t> ret(size);
+    eigen_utils::asvec(ret).setLinSpaced(size, 0, size -1);
+    return ret;
 }
 
 } // namespace utils

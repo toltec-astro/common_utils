@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Eigen/Dense>
+#include "../logging.h"
 
 namespace alg {
 
@@ -28,8 +29,31 @@ auto polyfit(const Eigen::DenseBase<DerivedA> &x,
     for (auto i = 0; i < order + 1; ++i) {
         det->col(i) = x.derived().array().pow(i);
     }
-    Eigen::VectorXd pol = det->colPivHouseholderQr().solve(y.derived());
+    // SPDLOG_TRACE("det: {}", *det);
+
+    // xscale (1, s, s^2, ...)
+    Eigen::Index max;
+    x.derived().array().abs().maxCoeff(&max);
+    Eigen::VectorXd xscale{order + 1};
+    for (auto i = 0; i < order + 1; ++i) {
+        xscale.coeffRef(i) = pow(x(max), i);
+    }
+    // SPDLOG_TRACE("xscale: {}", xscale);
+
+    // scale det before the fit
+    Eigen::MatrixXd det_scaled{s, order + 1};
+    for (auto i = 0; i < order + 1; ++i) {
+        det_scaled.col(i) = det->col(i) / xscale(i);
+    }
+    // SPDLOG_TRACE("det scaled: {}", det_scaled);
+    // fit with scaled y
+    auto yscale  = y(0);
+    Eigen::VectorXd pol_scaled = det_scaled.colPivHouseholderQr().solve(
+        y.derived() / yscale);
+    // restore the scaling for pol
+    Eigen::VectorXd pol = pol_scaled.cwiseQuotient(xscale) * yscale;
     Eigen::VectorXd res = y.derived() - (*det) * pol;
+    // SPDLOG_TRACE("res: {}", res);
     return std::make_tuple(std::move(pol), std::move(res));
 }
 
