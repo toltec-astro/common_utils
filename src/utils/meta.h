@@ -6,7 +6,7 @@
 namespace meta {
 
 namespace internal {
-template <typename... Ts> decltype(auto) fwd_capture_impl(Ts &&... xs) {
+template <typename... Ts> auto fwd_capture_impl(Ts &&... xs) {
     return std::make_tuple(std::forward<decltype(xs)>(xs)...);
 }
 template <typename T, T Begin, class Func, T... Is>
@@ -21,11 +21,11 @@ constexpr void static_for(Func &&f) {
         std::forward<Func>(f), std::make_integer_sequence<T, End - Begin>{});
 }
 
-template <typename Tuple> constexpr decltype(auto) tuplesize(const Tuple &) {
+template <typename Tuple> constexpr auto tuplesize(const Tuple &) {
     return std::tuple_size<Tuple>::value;
 }
 
-template <typename T> constexpr decltype(auto) bitcount(T value) {
+template <typename T, typename = std::enable_if_t<std::is_integral_v<T>>> constexpr auto bitcount(T value) {
     T count = 0;
     while (value > 0) {       // until all bits are zero
         if ((value & 1) == 1) // check lower bit
@@ -189,6 +189,14 @@ template <typename T> struct scalar_traits {
 #define __FUNC1(name, n) __FUNC2(name, n)
 #define GET_MACRO(func, ...)                                                   \
     __FUNC1(func, __BUGFX(__NARG2(__VA_ARGS__)))(__VA_ARGS__)
+
+// https://stackoverflow.com/a/45043324/1824372
+// #define VA_SELECT( NAME, NUM ) NAME ## NUM
+// #define VA_COMPOSE( NAME, ARGS ) NAME ARGS
+// #define VA_GET_COUNT( _0, _1, _2, _3, _4, _5, _6 /* ad nauseam */, COUNT, ... ) COUNT
+// #define VA_EXPAND() ,,,,,, // 6 commas (or 7 empty tokens)
+// #define VA_SIZE( ... ) VA_COMPOSE( VA_GET_COUNT, (VA_EXPAND __VA_ARGS__ (), 0, 6, 5, 4, 3, 2, 1) )
+// #define GET_MACRO( NAME, ... ) VA_SELECT( NAME, VA_SIZE(__VA_ARGS__) )(__VA_ARGS__)
 
 #define FWD(...) std::forward<decltype(__VA_ARGS__)>(__VA_ARGS__)
 

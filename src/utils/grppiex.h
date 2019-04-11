@@ -31,8 +31,8 @@ enum class Mode : int {
     ff = 1 << 4
 };
 #else
-meta_enum_class(Mode, int, seq = 1 << 0, thr = 1 << 1, omp = 1 << 2,
-                tbb = 1 << 3, ff = 1 << 4, par = thr | omp | tbb | ff);
+META_ENUM(Mode, int, seq = 1 << 0, thr = 1 << 1, omp = 1 << 2,
+        tbb = 1 << 3, ff = 1 << 4, par = thr | omp | tbb | ff);
 BITMASK_DEFINE_MAX_ELEMENT(Mode, ff);
 #endif
 

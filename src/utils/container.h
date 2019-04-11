@@ -162,12 +162,17 @@ std::vector<std::pair<std::size_t, typename T::value_type>> enumerate(const T& v
 }
 
 /// @brief Create index sequence for container.
-template<typename T>
-std::vector<std::size_t> index(const T& v) {
-    auto size = v.size();
-    std::vector<std::size_t> ret(size);
+template<typename Index, typename=std::enable_if_t<std::is_integral_v<Index>>>
+auto index(Index size) {
+    std::vector<Index> ret(size);
     eigen_utils::asvec(ret).setLinSpaced(size, 0, size -1);
     return ret;
+}
+
+/// @brief Create index sequence for container.
+template<typename T, typename=std::enable_if_t<meta::is_sized<T>::value>>
+auto index(const T& v) {
+    return index(v.size());
 }
 
 } // namespace utils

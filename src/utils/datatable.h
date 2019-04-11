@@ -31,7 +31,7 @@ struct DumpError : public std::runtime_error {
  */
 enum class Format : int { Ascii, Memdump };
 #else
-meta_enum_class(Format, int, Ascii, Memdump);
+META_ENUM(Format, int, Ascii, Memdump);
 #endif
 
 /**
@@ -62,8 +62,8 @@ template <> struct IO<Format::Ascii> {
     template <typename OStream, typename Derived>
     static decltype(auto)
     dump(OStream &os, const Eigen::EigenBase<Derived> &data,
-        const std::vector<std::string> &colnames = {},
-        const std::vector<int> &usecols = {}, char delim = ' ') {
+         const std::vector<std::string> &colnames = {},
+         const std::vector<int> &usecols = {}, char delim = ' ') {
         char newline = '\n';
         char comment = '#';
         auto nrows = data.rows();

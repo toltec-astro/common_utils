@@ -7,9 +7,9 @@ namespace meta_enum {
 
 // helper type2type
 template <typename T> struct type_t {};
-/// @brief functional traits to test if enum has meta
+/// @brief function traits to test if enum has meta
 template <typename T> std::false_type has_meta(type_t<T>);
-/// @brief functional traits to obtain the meta type of enum
+/// @brief function traits to obtain the meta type of enum
 template <typename T> void enum_meta(type_t<T>);
 
 template <typename EnumType> struct MetaEnumMember {
@@ -180,7 +180,7 @@ constexpr std::array<EnumType, size> resolveEnumValuesArray(
 
 } // namespace meta_enum
 
-#define meta_enum_class(Type, UnderlyingType, ...)                             \
+#define META_ENUM_INLINE(Type, UnderlyingType, ...)                             \
     enum class Type : UnderlyingType { __VA_ARGS__ };                          \
     struct Type##_meta {                                                       \
         constexpr static auto internal_size = []() constexpr {                 \
@@ -231,9 +231,14 @@ constexpr std::array<EnumType, size> resolveEnumValuesArray(
         constexpr static auto &string = meta.string;                           \
         constexpr static auto &members = meta.members;                         \
     };                                                                         \
+    Type##_meta enum_meta(meta_enum::type_t<Type>);                            \
+    std::true_type has_meta(meta_enum::type_t<Type>)
+
+#define META_ENUM_DEFINE_OSTREAM(Type) \
     template <typename OStream>                                                \
     OStream &operator<<(OStream &os, const Type &v) {                          \
         return os << fmt::format("{:s}", Type##_meta::from_value(v));          \
-    }                                                                          \
-    Type##_meta enum_meta(meta_enum::type_t<Type>);                            \
-    std::true_type has_meta(meta_enum::type_t<Type>)
+    }
+
+#define META_ENUM(Type, ...) META_ENUM_INLINE(Type, __VA_ARGS__); \
+    META_ENUM_DEFINE_OSTREAM(Type)

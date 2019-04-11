@@ -1,8 +1,8 @@
 #pragma once
-#include "utils/logging.h"
 #include "utils/formatter/container.h"
-#include <sstream>
+#include "utils/logging.h"
 #include <iomanip>
+#include <sstream>
 
 namespace config {
 
@@ -12,6 +12,7 @@ namespace config {
  * @ingroup config
  */
 class Config {
+
 public:
     using key_t = std::string;
     using value_t = std::variant<bool, int, double, const char *, std::string>;
@@ -32,11 +33,10 @@ public:
         std::visit([&](auto &&arg) { ss << arg; }, at(key));
         T out;
         ss >> out;
-        SPDLOG_TRACE("get config key={} value={} got={}", key,
-                     at(key), out);
+        SPDLOG_TRACE("get config key={} value={} got={}", key, at(key), out);
         return out;
     }
-    inline std::string get_str(const std::string & key) const {
+    inline std::string get_str(const std::string &key) const {
         return get<std::string>(key);
     }
 
@@ -53,9 +53,9 @@ public:
         // compute width
         std::size_t key_width = 0;
         auto it = std::max_element(this->m_config.begin(), this->m_config.end(),
-                         [](const auto& a, const auto& b) {
-            return a.first.size() < b.first.size();
-        });
+                                   [](const auto &a, const auto &b) {
+                                       return a.first.size() < b.first.size();
+                                   });
         if (it != this->m_config.end()) {
             key_width = it->first.size();
         }
@@ -72,10 +72,10 @@ public:
 private:
     storage_t m_config{};
 
-    const value_t& at(const std::string & key) const {
+    const value_t &at(const std::string &key) const {
         try {
             return this->m_config.at(key);
-        } catch (const std::out_of_range & e) {
+        } catch (const std::out_of_range &e) {
             SPDLOG_ERROR("invalid key: {} in config {}", key, pprint());
             throw;
         }

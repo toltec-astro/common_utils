@@ -97,7 +97,7 @@ template <Index _NP = Dynamic, Index _ND_IN = Dynamic, Index _ND_OUT = Dynamic,
         if constexpr (eigen_utils::is_plain_v<Derived>) {
             if (auto size = params.size(); size != NP) {
                 params.derived().resize(NP);
-                // SPDLOG_TRACE("resize params size {} to {}", size, params.size());
+                SPDLOG_TRACE("resize params size {} to {}", size, params.size());
             }
         }
         // makesure params.data() is continugous up to NP
@@ -139,8 +139,8 @@ template <Index _NP = Dynamic, Index _ND_IN = Dynamic, Index _ND_OUT = Dynamic,
                 params.coeffRef(i) = p.value;
             }
         }
-        // SPDLOG_TRACE("params init values: {}", params);
-        // SPDLOG_TRACE("fixed params: {}", fixed_params);
+        SPDLOG_TRACE("params init values: {}", params);
+        SPDLOG_TRACE("fixed params: {}", fixed_params);
         if (fixed_params.size() > 0) {
             SubsetParameterization *sp = new SubsetParameterization(
                         NP, fixed_params);
@@ -177,10 +177,6 @@ bool fit(const Eigen::DenseBase<DerivedA>& xdata_,
     // create problem
     auto [problem, paramblock] = Fitter_::make_problem(params.derived());
     // setup inputs
-    // SPDLOG_TRACE("input xdata{}", fmt_utils::pprint(xdata.data(), xdata.size()));
-    // SPDLOG_TRACE("input ydata{}", fmt_utils::pprint(reinterpret_cast<const typename Fitter_::Scalar*>(ydata.data()), ydata.size() * 2));
-    // SPDLOG_TRACE("input yerr{}", fmt_utils::pprint(reinterpret_cast<const typename Fitter_::Scalar*>(yerr.data()), yerr.size() * 2));
-
     fitter->nx = xdata.size();
     fitter->ny = ydata.size() * 2;  // complex
 
@@ -192,11 +188,11 @@ bool fit(const Eigen::DenseBase<DerivedA>& xdata_,
     Fitter_::set_autodiff_residual(
             problem.get(), paramblock, fitter);
 
-    // SPDLOG_TRACE("initial params {}",
-    //        fmt_utils::pprint(paramblock, Fitter_::NP));
-    // SPDLOG_TRACE("xdata{}", fmt_utils::pprint(fitter->xdata, fitter->nx));
-    // SPDLOG_TRACE("ydata{}", fmt_utils::pprint(fitter->ydata, fitter->ny));
-    // SPDLOG_TRACE("yerr{}", fmt_utils::pprint(fitter->yerr, fitter->ny));
+    SPDLOG_TRACE("initial params {}",
+           fmt_utils::pprint(paramblock, Fitter_::NP));
+    SPDLOG_TRACE("xdata{}", fmt_utils::pprint(fitter->xdata, fitter->nx));
+    SPDLOG_TRACE("ydata{}", fmt_utils::pprint(fitter->ydata, fitter->ny));
+    SPDLOG_TRACE("yerr{}", fmt_utils::pprint(fitter->yerr, fitter->ny));
 
     // do the fit
     Solver::Options options;
@@ -207,13 +203,11 @@ bool fit(const Eigen::DenseBase<DerivedA>& xdata_,
     ceres::Solve(options, problem.get(), &summary);
 
     SPDLOG_TRACE("{}", summary.BriefReport());
-    // SPDLOG_TRACE("fitted paramblock {}",
-    //        fmt_utils::pprint(paramblock, Fitter_::NP));
-    // SPDLOG_DEBUG("fitted params {}", params.derived());
+    SPDLOG_TRACE("fitted paramblock {}",
+           fmt_utils::pprint(paramblock, Fitter_::NP));
+    SPDLOG_TRACE("fitted params {}", params.derived());
     return summary.termination_type == ceres::CONVERGENCE;
 }
-
-
 
 }  // namspace ceresfit
 }  // namespace alg
