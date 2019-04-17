@@ -62,7 +62,7 @@ struct DivConqFinderStateCache {
  *  - Return: Optional tuple. The tuple contains properties computed
  *  for each feature segment. The first item of the properties should
  *  be of scalar type such that an Eigen vector could be constructed.
- * @param execution The GRPPI execution object to use.
+ * @param exmode The GRPPI execution mode to use.
  * @tparam ReturnStateCache If true, a DivConqFinderStateCache object contains
  *  the intermediate results is created, populated, and returned.
  * @return Functor that perform the feature detection.

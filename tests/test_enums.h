@@ -1,15 +1,16 @@
 #pragma once
 
+#include "utils/formatter/enum.h"
 #include "utils/meta_enum.h"
 #include "utils/bitmask.h"
 
 namespace test_enums {
 
 // enum for test meta_enum
-meta_enum_class(Type, int, TypeA, TypeB, TypeC);
+META_ENUM(Type, int, TypeA, TypeB, TypeC);
 
 // enum for test meta_enum with bitmask
-meta_enum_class(Flag, int, FlagA = 1 << 0, FlagB = 1 << 1, FlagC = 1 << 2,
+META_ENUM(Flag, int, FlagA = 1 << 0, FlagB = 1 << 1, FlagC = 1 << 2,
                 FlagD = FlagA | FlagB | FlagC, FlagE = FlagB | FlagC);
 BITMASK_DEFINE_MAX_ELEMENT(Flag, FlagC)
 

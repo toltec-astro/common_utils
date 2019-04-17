@@ -4,6 +4,7 @@
 #include "meta_enum.h"
 #include "logging.h"
 #include <dyn/dynamic_execution.h>
+#include "formatter/enum.h"
 #include <grppi.h>
 #include <numeric>
 

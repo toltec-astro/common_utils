@@ -8,7 +8,7 @@
 #include "utils/formatter/enum.h"
 #include "utils/formatter/matrix.h"
 #include "utils/grppiex.h"
-#include "utils/utils.h"
+#include "utils/container.h"
 
 namespace {
 
@@ -38,7 +38,7 @@ TEST(utils, create) {
     for (const auto &m : modes) {
         SPDLOG_TRACE("modes: {}", m);
     }
-    auto vm = utils::create<std::vector<std::string>>(
+    auto vm = container_utils::create<std::vector<std::string>>(
         modes, [](const auto &m) { return std::string(m.name); });
     for (const auto &m : vm) {
         SPDLOG_TRACE("vector modes: {}", m);
@@ -47,16 +47,16 @@ TEST(utils, create) {
     SPDLOG_TRACE("vector modes: {}", vm);
     std::vector<int> a = {1, 2, 3};
     SPDLOG_TRACE("vec int: {}", a);
-    auto b = utils::create<std::vector<double>>(a);
+    auto b = container_utils::create<std::vector<double>>(a);
     SPDLOG_TRACE("vec double: {}", b);
     std::string s = "abc";
     SPDLOG_TRACE("string: {}", s);
-    auto sm = utils::create<std::set<std::string>>(std::move(vm));
+    auto sm = container_utils::create<std::set<std::string>>(std::move(vm));
     auto vms = vm.size();
     SPDLOG_TRACE("modes after: {}, {}", vm, vms);
     SPDLOG_TRACE("set modes: {}", sm);
     std::vector<std::string> test = {"abc", "def", "ghi"};
-    auto cs = utils::create<std::vector<std::string>>(std::move(test));
+    auto cs = container_utils::create<std::vector<std::string>>(std::move(test));
     SPDLOG_TRACE("test after: {}", test);
     SPDLOG_TRACE("cs: {}", cs);
     std::copy(std::make_move_iterator(test.begin()),

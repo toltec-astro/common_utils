@@ -25,6 +25,12 @@ target_link_libraries(common_utils
 include(GBenchAndGTest)
 add_subdirectory(tests)
 
+# test programs
+option(UTILS_BUILD_TEST_PROGRAMS "Build test programs" ON)
+if (UTILS_BUILD_TEST_PROGRAMS)
+    add_subdirectory(test_progs)
+endif()
+
 # doc
 option(UTILS_BUILD_DOCS "Build docs" ON)
 if (UTILS_BUILD_DOCS)

@@ -54,7 +54,9 @@ template <Format format> struct IO {
 template <> struct IO<Format::Ascii> {
     /**
      * @brief Dump as ascii table.
-     * @param is Input stream to be parsed.
+     * @param os Output stream to dump the data to
+     * @param data The data to be dumped
+     * @param colnames The column names to use.
      * @param usecols The indexes of columns to include in the output.
      *  Python-style negative indexes are supported.
      * @param delim Delimiter characters. Default is space.
@@ -283,9 +285,9 @@ auto read(const std::string &filepath, Args &&... args) {
 
 /**
  * @brief Write table data to file.
- * @tparam Format The file format from \ref Format.
+ * @tparam Format The file format from Format.
  * @param filepath The path of the output file.
- * @param args The arguments forwarded to call \ref IO<format>::dump().
+ * @param args The arguments forwarded to call IO<format>::dump().
  */
 template <Format format, typename... Args>
 void write(const std::string &filepath, Args &&... args) {
