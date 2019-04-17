@@ -82,13 +82,11 @@ template <typename _Derived> struct EigenIter {
         return (x.n - y.n);
     }
     friend self operator-(const self &x, difference_type y) {
-        assert(x.data == y.data);
         self tmp{x};
         tmp.n -= y;
         return tmp;
     }
     friend self operator+(const self &x, difference_type y) {
-        assert(x.data == y.data);
         self tmp{x};
         tmp.n += y;
         return tmp;

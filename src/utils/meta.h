@@ -1,7 +1,8 @@
 #pragma once
 
-#include <tuple>
+#include <cassert>
 #include <iterator>
+#include <tuple>
 
 namespace meta {
 
@@ -25,7 +26,8 @@ template <typename Tuple> constexpr auto tuplesize(const Tuple &) {
     return std::tuple_size<Tuple>::value;
 }
 
-template <typename T, typename = std::enable_if_t<std::is_integral_v<T>>> constexpr auto bitcount(T value) {
+template <typename T, typename = std::enable_if_t<std::is_integral_v<T>>>
+constexpr auto bitcount(T value) {
     T count = 0;
     while (value > 0) {       // until all bits are zero
         if ((value & 1) == 1) // check lower bit
@@ -35,14 +37,20 @@ template <typename T, typename = std::enable_if_t<std::is_integral_v<T>>> conste
     return count;
 }
 
+template <typename To, typename From,
+          typename = std::enable_if_t<std::is_integral_v<From> &&
+                                      std::is_integral_v<To>>>
+To size_cast(From value) {
+    assert(value == static_cast<From>(static_cast<To>(value)));
+    return static_cast<To>(value);
+}
+
 struct nop {
     void operator()(...) const {}
 };
 
-template<typename T>
-using is_nop = std::is_same<T, nop>;
-template<typename T>
-inline constexpr bool is_nop_v = is_nop<T>::value;
+template <typename T> using is_nop = std::is_same<T, nop>;
+template <typename T> inline constexpr bool is_nop_v = is_nop<T>::value;
 
 template <class T> struct always_false : std::false_type {};
 
@@ -70,21 +78,20 @@ template <typename T>
 struct is_sized<T, std::void_t<decltype(std::declval<T>().size())>>
     : std::true_type {};
 
-template <typename T>
-struct is_iterator {
-  static char test(...);
+template <typename T> struct is_iterator {
+    static char test(...);
 
-  template <typename U,
-    typename=typename std::iterator_traits<U>::difference_type,
-    typename=typename std::iterator_traits<U>::pointer,
-    typename=typename std::iterator_traits<U>::reference,
-    typename=typename std::iterator_traits<U>::value_type,
-    typename=typename std::iterator_traits<U>::iterator_category
-  > static long test(U&&);
+    template <typename U,
+              typename = typename std::iterator_traits<U>::difference_type,
+              typename = typename std::iterator_traits<U>::pointer,
+              typename = typename std::iterator_traits<U>::reference,
+              typename = typename std::iterator_traits<U>::value_type,
+              typename = typename std::iterator_traits<U>::iterator_category>
+    static long test(U &&);
 
-  constexpr static bool value = std::is_same<decltype(test(std::declval<T>())),long>::value;
+    constexpr static bool value =
+        std::is_same<decltype(test(std::declval<T>())), long>::value;
 };
-
 
 // return type traits for functors
 template <template <typename...> typename traits, typename F, typename... Args>
@@ -164,39 +171,41 @@ struct has_insert<T, std::void_t<decltype(std::declval<T>().insert(
                          std::declval<typename T::value_type>()))>>
     : std::true_type {};
 
-template <typename T, typename size_t = std::size_t, typename = void> struct has_resize : std::false_type {};
+template <typename T, typename size_t = std::size_t, typename = void>
+struct has_resize : std::false_type {};
 template <typename T, typename size_t>
-struct has_resize<T, size_t, std::void_t<decltype(std::declval<T>().resize(
-                         std::declval<size_t>()))>>
+struct has_resize<
+    T, size_t,
+    std::void_t<decltype(std::declval<T>().resize(std::declval<size_t>()))>>
     : std::true_type {};
 
 template <typename T> struct scalar_traits {
     using type = typename std::decay_t<T>;
-    constexpr static bool value =
-        std::is_arithmetic_v<type>;
+    constexpr static bool value = std::is_arithmetic_v<type>;
 };
 
 } // namespace meta
 
 // overload macro with number of arguments
 // https://stackoverflow.com/a/45600545/1824372
-#define __BUGFX(x) x
-#define __NARG2(...) __BUGFX(__NARG1(__VA_ARGS__, __RSEQN()))
-#define __NARG1(...) __BUGFX(__ARGSN(__VA_ARGS__))
-#define __ARGSN(_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, N, ...) N
-#define __RSEQN() 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0
-#define __FUNC2(name, n) name##n
-#define __FUNC1(name, n) __FUNC2(name, n)
+#define VA_BUGFX(x) x
+#define VA_NARG2(...) VA_BUGFX(VA_NARG1(__VA_ARGS__, VA_RSEQN()))
+#define VA_NARG1(...) VA_BUGFX(VA_ARGSN(__VA_ARGS__))
+#define VA_ARGSN(_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, N, ...) N
+#define VA_RSEQN() 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0
+#define VA_FUNC2(name, n) name##n
+#define VA_FUNC1(name, n) VA_FUNC2(name, n)
 #define GET_MACRO(func, ...)                                                   \
-    __FUNC1(func, __BUGFX(__NARG2(__VA_ARGS__)))(__VA_ARGS__)
+    VA_FUNC1(func, VA_BUGFX(VA_NARG2(__VA_ARGS__)))(__VA_ARGS__)
 
 // https://stackoverflow.com/a/45043324/1824372
 // #define VA_SELECT( NAME, NUM ) NAME ## NUM
 // #define VA_COMPOSE( NAME, ARGS ) NAME ARGS
-// #define VA_GET_COUNT( _0, _1, _2, _3, _4, _5, _6 /* ad nauseam */, COUNT, ... ) COUNT
-// #define VA_EXPAND() ,,,,,, // 6 commas (or 7 empty tokens)
-// #define VA_SIZE( ... ) VA_COMPOSE( VA_GET_COUNT, (VA_EXPAND __VA_ARGS__ (), 0, 6, 5, 4, 3, 2, 1) )
-// #define GET_MACRO( NAME, ... ) VA_SELECT( NAME, VA_SIZE(__VA_ARGS__) )(__VA_ARGS__)
+// #define VA_GET_COUNT( _0, _1, _2, _3, _4, _5, _6 /* ad nauseam */, COUNT, ...
+// ) COUNT #define VA_EXPAND() ,,,,,, // 6 commas (or 7 empty tokens) #define
+// VA_SIZE( ... ) VA_COMPOSE( VA_GET_COUNT, (VA_EXPAND __VA_ARGS__ (), 0, 6, 5,
+// 4, 3, 2, 1) ) #define GET_MACRO( NAME, ... ) VA_SELECT( NAME,
+// VA_SIZE(__VA_ARGS__) )(__VA_ARGS__)
 
 #define FWD(...) std::forward<decltype(__VA_ARGS__)>(__VA_ARGS__)
 
@@ -215,3 +224,5 @@ template <typename T> struct scalar_traits {
 #define REQUIRES_V(...) typename = std::enable_if_t<(__VA_ARGS__)>
 #define REQUIRES_RT(...)                                                       \
     std::enable_if_t<(__VA_ARGS__::value), typename __VA_ARGS__::type>
+
+#define SIZET(...) meta::size_cast<std::size_t>(__VA_ARGS__)

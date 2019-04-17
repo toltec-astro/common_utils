@@ -94,6 +94,7 @@ auto divconqfinder(F1 &&chunkfunc, F2 &&findfunc, F3 &&propfunc,
                 })) {
                 throw std::runtime_error("input data has to be sorted");
             }
+            return true;
         };
         assert(validate_sorted(xdata));
         // map xdata and ydata to vectors

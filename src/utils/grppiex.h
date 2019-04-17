@@ -3,9 +3,9 @@
 #include "meta.h"
 #include "meta_enum.h"
 #include "logging.h"
-#include <dyn/dynamic_execution.h>
+#include <grppi/dyn/dynamic_execution.h>
 #include "formatter/enum.h"
-#include <grppi.h>
+#include <grppi/grppi.h>
 #include <numeric>
 
 namespace grppiex {
