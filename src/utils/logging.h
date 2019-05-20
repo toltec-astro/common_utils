@@ -7,7 +7,7 @@
 #endif
 #include <fmt/ostream.h>
 #include <spdlog/spdlog.h>
-#include "spdlog/sinks/stdout_color_sinks.h"
+#include <spdlog/sinks/stdout_color_sinks.h>
 #include "meta.h"
 
 /// Macros to install scope-local logger and log
@@ -28,6 +28,24 @@
 #define LOGGER_CRITICAL(...) SPDLOG_LOGGER_CRITICAL(logger, __VA_ARGS__)
 
 namespace logging {
+
+template<typename F, typename...Args>
+decltype(auto) quiet(F &&func, Args &&... args) {
+    auto default_log_level = spdlog::default_logger()->level();
+    spdlog::set_level(spdlog::level::off);
+    auto reset = [&default_log_level]() {
+        spdlog::set_level(default_log_level);
+    };
+    if constexpr (std::is_void_v<std::invoke_result_t<F, Args...>>) {
+        FWD(func)(FWD(args)...);
+        reset();
+    } else {
+        decltype(auto) ret = FWD(func)(FWD(args)...);
+        reset();
+        return ret;
+    }
+};
+
 
 /**
  * @brief Call a function and log the timing.

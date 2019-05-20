@@ -1,7 +1,7 @@
 #pragma once
 
 #include "logging.h"
-#include "meta_enum.h"
+#include "enum/meta_enum.h"
 #include <Eigen/Core>
 #include <fstream>
 

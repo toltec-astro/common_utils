@@ -1,33 +1,20 @@
 #pragma once
 #include "../eigeniter.h"
+#include "utils.h"
 #include "ptr.h"
 
 namespace fmt {
 
-template <typename T> struct formatter<eigeniter::EigenIter<T>> {
-
+template <typename T> struct formatter<eigeniter::EigenIter<T>>
+    : fmt_utils::charspec_formatter_base<'l', 's'> {
     // s: short fmt
     // l: long fmt
-    char spec = 'l';
-
-    template <typename ParseContext>
-    constexpr auto parse(ParseContext &ctx) -> decltype(ctx.begin()) {
-        auto it = ctx.begin(), end = ctx.end();
-        if (it == end) {
-            return it;
-        }
-        if (*it == 's' || *it == 'l') {
-            spec = *it++;
-        }
-        return it;
-    }
-
     template <typename FormatContext>
     auto format(const eigeniter::EigenIter<T> &ei, FormatContext &ctx)
         -> decltype(ctx.out()) {
         using fmt_utils::ptr;
         auto it = ctx.out();
-        switch (spec) {
+        switch (spec_handler()) {
         case 'l': {
             auto [nrows, ncols, outer, inner, outer_stride, inner_stride] = ei.internals();
             return format_to(it, "[{}]({} rc=({}, {}) oi=({}, {}) stride=({}, {}))", ei.n,

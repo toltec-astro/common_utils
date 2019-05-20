@@ -100,11 +100,12 @@ OStream &pprint_matrix(OStream &s, const Eigen::DenseBase<Derived> &m_,
     std::string ellipsis = "...";
     std::string fmt_ellipsis = "...";
     if (width > 0) {
+        auto width_ = SIZET(width);
         if (width <= 3) {
-            fmt_ellipsis = std::string(width, '.');
+            fmt_ellipsis = std::string(width_, '.');
         } else {
-            fmt_ellipsis = std::string(width, ' ');
-            fmt_ellipsis.replace((width - ellipsis.size() + 1) / 2,
+            fmt_ellipsis = std::string(width_, ' ');
+            fmt_ellipsis.replace((width_ - ellipsis.size() + 1) / 2,
                                  ellipsis.size(), ellipsis);
         }
     }
@@ -214,7 +215,7 @@ template <typename T, typename Format = pformat> struct pprint {
     pprint(const T &m)
         : matrix(m), format(Format::format(m.rows(), m.cols())) {}
 
-    template <typename, typename, typename> friend class fmt::formatter;
+    template <typename, typename, typename> friend struct fmt::formatter;
 
 protected:
     Ref matrix;
@@ -256,7 +257,7 @@ struct formatter<fmt_utils::pprint<T, Format>> {
             while (!is_arg_token(it) && *it != end_token && it != end) {
                 ss.push_back(*it);
                 ++it;
-            };
+            }
             // handle token arg
             if (ss.empty()) {
                 // use actual size
@@ -339,7 +340,7 @@ struct formatter<std::array<T, size>, Char,
     auto format(const std::array<T, size> &arr, FormatContext &ctx)
         -> decltype(ctx.out()) {
         return formatter<fmt_utils::pprint<T>>::format(
-            fmt_utils::pprint{arr.data(), arr.size()}, ctx);
+            fmt_utils::pprint{arr.data(), static_cast<Eigen::Index>(arr.size())}, ctx);
     }
 };
 

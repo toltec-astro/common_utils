@@ -1,4 +1,5 @@
 #pragma once
+#include "utils.h"
 #include <fmt/format.h>
 #include <optional>
 #include <variant>
@@ -63,12 +64,6 @@ struct is_stl_container<std::priority_queue<Args...>> : std::true_type {};
 template <typename T>
 using is_stl_container = internal::is_stl_container<std::decay_t<T>>;
 
-template <class T>
-struct is_c_str
-    : std::integral_constant<
-          bool, std::is_same_v<char const *, typename std::decay_t<T>> ||
-                    std::is_same_v<char *, typename std::decay_t<T>>> {};
-
 } // namespace fmt_utils
 
 namespace fmt {
@@ -84,15 +79,8 @@ template <typename T> struct formatter<std::optional<T>> : formatter<T> {
     }
 };
 
-template <typename T, typename U> struct formatter<std::pair<T, U>> {
-    template <typename ParseContext>
-    constexpr auto parse(ParseContext &ctx) -> decltype(ctx.begin()) {
-        auto it = ctx.begin(), end = ctx.end();
-        if (it == end) {
-            return it;
-        }
-        return it;
-    }
+template <typename T, typename U>
+struct formatter<std::pair<T, U>> : fmt_utils::null_spec_formatter_base {
     template <typename FormatContext>
     auto format(const std::pair<T, U> &p, FormatContext &ctx)
         -> decltype(ctx.out()) {
@@ -100,73 +88,48 @@ template <typename T, typename U> struct formatter<std::pair<T, U>> {
     }
 };
 
-/*
-template <typename T, typename Char, template <typename...> typename U,
-          typename... Rest>
-struct formatter<
-    U<T, Rest...>, Char,
-    std::enable_if_t<
-        // stl containers
-        fmt_utils::is_stl_container<U<T, Rest...>>::value
-        meta::is_iterable<U<T, Rest...>>::value &&
-        // exclude eigen type and vector with scalar type, which are handled by
-        // matrix formatter
-
-        !(std::is_base_of_v<Eigen::EigenBase<U<T, Rest...>>, U<T, Rest...>>)&&!(
-            meta::is_instance<U<T, Rest...>, std::vector>::value &&
-            meta::scalar_traits<T>::value) &&
-        // exclude string types
-        !(meta::is_instance<U<T, Rest...>, std::basic_string>::value ||
-          meta::is_instance<U<T, Rest...>, std::basic_string_view>::value ||
-          meta::is_instance<U<T, Rest...>, fmt::basic_string_view>::value)>
-        >> {
-    template <typename ParseContext>
-    constexpr auto parse(ParseContext &ctx) -> decltype(ctx.begin()) {
-        auto it = ctx.begin(), end = ctx.end();
-        if (it == end) {
-            return it;
-        }
-        return it;
-    }
-
+template <>
+struct formatter<std::monostate, char, void>
+    : fmt_utils::null_spec_formatter_base {
     template <typename FormatContext>
-    auto format(const U<T, Rest...> &vec, FormatContext &ctx)
+    auto format(const std::monostate &, FormatContext &ctx)
         -> decltype(ctx.out()) {
-        auto it = ctx.out();
-        it = format_to(it, "{{");
-        bool sep = false;
-        for (const auto &v : vec) {
-            if (sep) {
-                it = format_to(it, ", ");
-            }
-            it = format_to(it, "{}", v);
-            sep = true;
-        }
-        return format_to(it, "}}");
+        return format_to(ctx.out(), "<undef>");
     }
 };
-*/
 
 template <typename T, typename... Rest>
-struct formatter<std::variant<T, Rest...>, char, void> {
-    template <typename ParseContext>
-    constexpr auto parse(ParseContext &ctx) -> decltype(ctx.begin()) {
-        auto it = ctx.begin(), end = ctx.end();
-        if (it == end) {
-            return it;
-        }
-        return it;
-    }
+struct formatter<std::variant<T, Rest...>, char, void>
+    : fmt_utils::charspec_formatter_base<'l', '0', 's'> {
+    // 0: value
+    // s: value (t)
+    // l: value (type) (default)
     template <typename FormatContext>
     auto format(const std::variant<T, Rest...> &v, FormatContext &ctx)
         -> decltype(ctx.out()) {
         auto it = ctx.out();
+        auto spec = spec_handler();
         std::visit(
             [&](auto &&arg) {
-                std::string t;
-                std::string f = "{0:} ({1:})";
+                std::string f;
                 using A = std::decay_t<decltype(arg)>;
-                if constexpr (std::is_same_v<A, bool>) {
+                if constexpr (std::is_same_v<A, std::string> ||
+                              fmt_utils::is_c_str<A>::value) {
+                    f = "\"{}\"";
+                } else {
+                    f = "{}";
+                }
+                // format value
+                it = format_to(it, f, arg);
+                if (spec == '0') {
+                    return;
+                }
+                // format with type code
+                std::string t;
+                f = " ({})";
+                if constexpr (std::is_same_v<A, std::monostate>) {
+                    t = "undef";
+                } else if constexpr (std::is_same_v<A, bool>) {
                     t = "bool";
                 } else if constexpr (std::is_same_v<A, int>) {
                     t = "int";
@@ -175,13 +138,23 @@ struct formatter<std::variant<T, Rest...>, char, void> {
                 } else if constexpr (std::is_same_v<A, std::string> ||
                                      fmt_utils::is_c_str<A>::value) {
                     t = "str";
-                    f = "\"{0:}\" ({1:})";
                 } else {
-                    t = "?";
+                    // fallback to rtti type id
+                    t = typeid(A).name();
                     // static_assert(meta::always_false<T>::value, "NOT KNOWN
                     // TYPE");
                 }
-                it = format_to(it, f, arg, t);
+                switch (spec) {
+                case 's': {
+                    it = format_to(it, f, t[0]);
+                    return;
+                }
+                case 'l': {
+                    it = format_to(it, f, t);
+                    return;
+                }
+                }
+                return;
             },
             v);
         return it;
@@ -192,7 +165,8 @@ struct formatter<std::variant<T, Rest...>, char, void> {
 
 namespace std {
 
-/// provide output stream operator for all containers
+/// Provide output stream operator for all containers
+/// this will be superseded by any formatter specialization
 template <typename OStream, typename T, typename... Rest,
           template <typename...> typename U,
           typename = std::enable_if_t<
@@ -211,6 +185,7 @@ OStream &operator<<(OStream &os, const U<T, Rest...> &cont) {
     os << "}";
     return os;
 }
+
 /// specialize for std::array
 template <typename OStream, typename T, std::size_t size>
 OStream &operator<<(OStream &os, const std::array<T, size> &cont) {

@@ -1,7 +1,6 @@
 #pragma once
-#include "bitmask.h"
+#include "enum.h"
 #include "meta.h"
-#include "meta_enum.h"
 #include "logging.h"
 #include <grppi/dyn/dynamic_execution.h>
 #include "formatter/enum.h"

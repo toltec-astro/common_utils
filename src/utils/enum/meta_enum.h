@@ -5,37 +5,41 @@
 
 namespace meta_enum {
 
-// helper type2type
+// We use function traits to allow traits in different namespaces
 template <typename T> struct type_t {};
-/// @brief function traits to test if enum has meta
-template <typename T> std::false_type has_meta(type_t<T>);
-/// @brief function traits to obtain the meta type of enum
-template <typename T> void enum_meta(type_t<T>);
+/// @brief Traits to test if enum has meta
+template <typename T> std::false_type enum_has_meta(type_t<T>);
+/// @brief Traits to obtain the meta type of enum
+template <typename T> void enum_meta_type(type_t<T>);
 
+/// @brief Class to store metadata of enum member
 template <typename EnumType> struct MetaEnumMember {
-    EnumType value = {};
-    std::string_view name;
-    std::string_view string;
-    size_t index = {};
+    EnumType value{};
+    std::string_view name{};
+    std::string_view string{};
+    std::size_t index{0};
 };
 
-template <typename EnumType, typename UnderlyingTypeIn, size_t size>
+/// @brief Class to store metadata of enum type
+template <typename EnumType, typename _UnderlyingType, std::size_t size>
 struct MetaEnum {
-    using UnderlyingType = UnderlyingTypeIn;
-    std::string_view name;
-    std::string_view string;
-    std::array<MetaEnumMember<EnumType>, size> members = {};
+    using UnderlyingType = _UnderlyingType;
+    std::string_view name{};
+    std::string_view string{};
+    std::array<MetaEnumMember<EnumType>, size> members{};
 };
 
 namespace internal {
 
-constexpr bool isNested(size_t brackets, bool quote) {
+// facilities to parse the meta enum macro body
+constexpr bool isNested(std::size_t brackets, bool quote) {
     return brackets != 0 || quote;
 }
 
-constexpr size_t nextEnumCommaOrEnd(size_t start, std::string_view enumString) {
-    size_t brackets = 0; //()[]{}
-    bool quote = false;  //""
+constexpr std::size_t nextEnumCommaOrEnd(std::size_t start,
+                                         std::string_view enumString) {
+    std::size_t brackets = 0; //()[]{}
+    bool quote = false;       //""
     char lastChar = '\0';
     char nextChar = '\0';
 
@@ -56,6 +60,7 @@ constexpr size_t nextEnumCommaOrEnd(size_t start, std::string_view enumString) {
         case '<':
             if (lastChar == '<' || nextChar == '<')
                 break;
+            [[fallthrough]];
         case '{':
             ++brackets;
             break;
@@ -63,6 +68,7 @@ constexpr size_t nextEnumCommaOrEnd(size_t start, std::string_view enumString) {
         case '>':
             if (lastChar == '>' || nextChar == '>')
                 break;
+            [[fallthrough]];
         case '}':
             --brackets;
             break;
@@ -71,7 +77,7 @@ constexpr size_t nextEnumCommaOrEnd(size_t start, std::string_view enumString) {
         }
     };
 
-    size_t current = start;
+    std::size_t current = start;
     for (; current < enumString.size() &&
            (isNested(brackets, quote) || (enumString[current] != ','));
          ++current) {
@@ -90,12 +96,12 @@ constexpr bool isAllowedIdentifierChar(char c) {
 }
 
 constexpr std::string_view parseEnumMemberName(std::string_view memberString) {
-    size_t nameStart = 0;
+    std::size_t nameStart = 0;
     while (!isAllowedIdentifierChar(memberString[nameStart])) {
         ++nameStart;
     }
 
-    size_t nameSize = 0;
+    std::size_t nameSize = 0;
 
     while (isAllowedIdentifierChar(memberString[nameStart + nameSize])) {
         ++nameSize;
@@ -104,7 +110,7 @@ constexpr std::string_view parseEnumMemberName(std::string_view memberString) {
     return std::string_view(memberString.data() + nameStart, nameSize);
 }
 
-template <typename EnumType, typename UnderlyingType, size_t size>
+template <typename EnumType, typename UnderlyingType, std::size_t size>
 constexpr MetaEnum<EnumType, UnderlyingType, size>
 parseMetaEnum(std::string_view name, std::string_view in,
               const std::array<EnumType, size> &values) {
@@ -113,14 +119,14 @@ parseMetaEnum(std::string_view name, std::string_view in,
     result.string = in;
 
     std::array<std::string_view, size> memberStrings;
-    size_t amountFilled = 0;
+    std::size_t amountFilled = 0;
 
-    size_t currentStringStart = 0;
+    std::size_t currentStringStart = 0;
 
     while (amountFilled < size) {
-        size_t currentStringEnd =
+        std::size_t currentStringEnd =
             nextEnumCommaOrEnd(currentStringStart + 1, in);
-        size_t currentStringSize = currentStringEnd - currentStringStart;
+        std::size_t currentStringSize = currentStringEnd - currentStringStart;
 
         if (currentStringStart != 0) {
             ++currentStringStart;
@@ -133,7 +139,7 @@ parseMetaEnum(std::string_view name, std::string_view in,
         currentStringStart = currentStringEnd;
     }
 
-    for (size_t i = 0; i < memberStrings.size(); ++i) {
+    for (std::size_t i = 0; i < memberStrings.size(); ++i) {
         result.members[i].name = parseEnumMemberName(memberStrings[i]);
         result.members[i].string = memberStrings[i];
         result.members[i].value = values[i];
@@ -153,21 +159,20 @@ template <typename EnumUnderlyingType> struct IntWrapper {
     }
     EnumUnderlyingType value;
     bool empty = true;
+    // allow composition of members in the definition
     constexpr friend IntWrapper operator|(const IntWrapper &lhs,
                                           const IntWrapper &rhs) {
-        IntWrapper ret = lhs;
-        ret.value = lhs.value | rhs.value;
-        return ret;
+        return IntWrapper(lhs.value | rhs.value);
     }
 };
 
-template <typename EnumType, typename EnumUnderlyingType, size_t size>
+template <typename EnumType, typename EnumUnderlyingType, std::size_t size>
 constexpr std::array<EnumType, size> resolveEnumValuesArray(
     const std::initializer_list<IntWrapper<EnumUnderlyingType>> &in) {
     std::array<EnumType, size> result{};
 
     EnumUnderlyingType nextValue = 0;
-    for (size_t i = 0; i < size; ++i) {
+    for (std::size_t i = 0; i < size; ++i) {
         auto wrapper = *(in.begin() + i);
         EnumUnderlyingType newValue = wrapper.empty ? nextValue : wrapper.value;
         nextValue = newValue + 1;
@@ -180,8 +185,7 @@ constexpr std::array<EnumType, size> resolveEnumValuesArray(
 
 } // namespace meta_enum
 
-#define META_ENUM_INLINE(Type, UnderlyingType, ...)                             \
-    enum class Type : UnderlyingType { __VA_ARGS__ };                          \
+#define META_ENUM_IMPL(Type, UnderlyingType, ...)                                   \
     struct Type##_meta {                                                       \
         constexpr static auto internal_size = []() constexpr {                 \
             using IntWrapperType =                                             \
@@ -202,7 +206,7 @@ constexpr std::array<EnumType, size> resolveEnumValuesArray(
                 if (member.value == e)                                         \
                     return member.name;                                        \
             }                                                                  \
-            return std::string_view("__INVALID_ENUM_VAL__");                   \
+            return std::string_view("__INVALID__");                            \
         };                                                                     \
         [[maybe_unused]] constexpr static auto from_name =                     \
             [](std::string_view s)                                             \
@@ -221,24 +225,20 @@ constexpr std::array<EnumType, size> resolveEnumValuesArray(
             }                                                                  \
             return std::nullopt;                                               \
         };                                                                     \
-        [[maybe_unused]] constexpr static auto from_index = [](size_t i) {     \
-            std::optional<meta_enum::MetaEnumMember<Type>> result;             \
-            if (i < meta.members.size())                                       \
-                result = meta.members[i];                                      \
-            return result;                                                     \
-        };                                                                     \
+        [[maybe_unused]] constexpr static auto from_index =                    \
+            [](std::size_t i) {                                                \
+                std::optional<meta_enum::MetaEnumMember<Type>> result;         \
+                if (i < meta.members.size())                                   \
+                    result = meta.members[i];                                  \
+                return result;                                                 \
+            };                                                                 \
         constexpr static auto &name = meta.name;                               \
         constexpr static auto &string = meta.string;                           \
         constexpr static auto &members = meta.members;                         \
     };                                                                         \
-    Type##_meta enum_meta(meta_enum::type_t<Type>);                            \
-    std::true_type has_meta(meta_enum::type_t<Type>)
+    Type##_meta enum_meta_type(meta_enum::type_t<Type>);                       \
+    std::true_type enum_has_meta(meta_enum::type_t<Type>)
 
-#define META_ENUM_DEFINE_OSTREAM(Type) \
-    template <typename OStream>                                                \
-    OStream &operator<<(OStream &os, const Type &v) {                          \
-        return os << fmt::format("{:s}", Type##_meta::from_value(v));          \
-    }
-
-#define META_ENUM(Type, ...) META_ENUM_INLINE(Type, __VA_ARGS__); \
-    META_ENUM_DEFINE_OSTREAM(Type)
+#define META_ENUM(Type, UnderlyingType, ...)                                   \
+    enum class Type : UnderlyingType { __VA_ARGS__ }; \
+    META_ENUM_IMPL(Type, UnderlyingType, __VA_ARGS__ )

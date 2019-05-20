@@ -15,29 +15,16 @@ template <typename T> struct ptr {
 
 namespace fmt {
 
-template <typename T> struct formatter<fmt_utils::ptr<T>> {
-
+template <typename T> struct formatter<fmt_utils::ptr<T>>
+: fmt_utils::charspec_formatter_base<'z', 'x', 'y'> {
     // x: base16, i.e., hex
     // y: base32
-    // z: base64
-    char spec = 'z';
-
-    template <typename ParseContext>
-    constexpr auto parse(ParseContext &ctx) -> decltype(ctx.begin()) {
-        auto it = ctx.begin(), end = ctx.end();
-        if (it == end) {
-            return it;
-        }
-        if (*it == 'x' || *it == 'y' || *it == 'z') {
-            spec = *it++;
-        }
-        return it;
-    }
-
+    // z: base64 (default)
     template <typename FormatContext>
     auto format(const fmt_utils::ptr<T> ptr, FormatContext &ctx)
         -> decltype(ctx.out()) {
         auto it = ctx.out();
+        auto spec = spec_handler();
         switch (spec) {
         case 'x':
             return format_to(it, "{:x}", ptr.value);
