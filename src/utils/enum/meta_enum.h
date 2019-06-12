@@ -6,14 +6,18 @@
 namespace meta_enum {
 
 // We use function traits to allow traits in different namespaces
-template <typename T> struct type_t {};
+template <typename T>
+struct type_t {};
 /// @brief Traits to test if enum has meta
-template <typename T> std::false_type enum_has_meta(type_t<T>);
+template <typename T>
+std::false_type enum_has_meta(type_t<T>);
 /// @brief Traits to obtain the meta type of enum
-template <typename T> void enum_meta_type(type_t<T>);
+template <typename T>
+void enum_meta_type(type_t<T>);
 
 /// @brief Class to store metadata of enum member
-template <typename EnumType> struct MetaEnumMember {
+template <typename EnumType>
+struct MetaEnumMember {
     EnumType value{};
     std::string_view name{};
     std::string_view string{};
@@ -149,7 +153,8 @@ parseMetaEnum(std::string_view name, std::string_view in,
     return result;
 }
 
-template <typename EnumUnderlyingType> struct IntWrapper {
+template <typename EnumUnderlyingType>
+struct IntWrapper {
     constexpr IntWrapper() : value(0) {}
     constexpr IntWrapper(EnumUnderlyingType in) : value(in), empty(false) {}
     constexpr IntWrapper &operator=(EnumUnderlyingType in) {
@@ -185,7 +190,7 @@ constexpr std::array<EnumType, size> resolveEnumValuesArray(
 
 } // namespace meta_enum
 
-#define META_ENUM_IMPL(Type, UnderlyingType, ...)                                   \
+#define META_ENUM_IMPL(Type, UnderlyingType, ...)                              \
     struct Type##_meta {                                                       \
         constexpr static auto internal_size = []() constexpr {                 \
             using IntWrapperType =                                             \
@@ -240,5 +245,6 @@ constexpr std::array<EnumType, size> resolveEnumValuesArray(
     std::true_type enum_has_meta(meta_enum::type_t<Type>)
 
 #define META_ENUM(Type, UnderlyingType, ...)                                   \
-    enum class Type : UnderlyingType { __VA_ARGS__ }; \
-    META_ENUM_IMPL(Type, UnderlyingType, __VA_ARGS__ )
+    enum class Type : UnderlyingType { __VA_ARGS__ };                          \
+    META_ENUM_IMPL(Type, UnderlyingType, __VA_ARGS__)
+#define ENUM_META(Type) Type##_meta::meta

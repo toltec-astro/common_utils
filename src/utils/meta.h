@@ -56,26 +56,40 @@ template <auto v, typename Case, typename... Rest>
 using switch_t = select_t<internal::case_to_cond_t<v, Case>,
                           internal::case_to_cond_t<v, Rest>...>;
 
+template<typename T, T ... vs>
+struct scalar_sequence {};
+
 namespace internal {
 template <typename T, T Begin, class Func, T... Is>
 constexpr void static_for_impl(Func &&f, std::integer_sequence<T, Is...>) {
     (std::forward<Func>(f)(std::integral_constant<T, Begin + Is>{}), ...);
 }
 } //  namespace internal
+
+template<auto v>
+using scalar_t = std::integral_constant<decltype(v), v>;
+
 template <typename T, T Begin, T End, class Func>
 constexpr void static_for(Func &&f) {
     internal::static_for_impl<T, Begin>(
         std::forward<Func>(f), std::make_integer_sequence<T, End - Begin>{});
 }
 
-template <typename T, class Func, T... Is>
-constexpr auto apply_sequence(Func &&f, std::integer_sequence<T, Is...>)
+template <auto... Is, class Func>
+constexpr void static_for_each(Func &&f) {
+    using T = typename std::tuple_element_t<0, std::tuple<decltype(Is)...>>;
+    (std::forward<Func>(f)(std::integral_constant<T, Is>{}),...);
+}
+
+
+template <typename T, class Func, T... Is, template< typename TT, TT...> typename S>
+constexpr auto apply_sequence(Func &&f, S<T, Is...>)
     -> decltype(auto) {
     return std::forward<Func>(f)(Is...);
 }
 
-template <typename T, class Func, T... Is>
-constexpr auto apply_const_sequence(Func &&f, std::integer_sequence<T, Is...>)
+template <typename T, class Func, T... Is, template< typename TT, TT...> typename S>
+constexpr auto apply_const_sequence(Func &&f, S<T, Is...>)
     -> decltype(auto) {
     return std::forward<Func>(f)(std::integral_constant<T, Is>{}...);
 }

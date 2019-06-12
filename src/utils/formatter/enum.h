@@ -171,18 +171,31 @@ struct formatter<bitmask::bitmask<T>>
 /// @brief Formatter for enum meta
 template <typename EnumType, typename UnderlyingType, std::size_t size>
 struct formatter<meta_enum::MetaEnum<EnumType, UnderlyingType, size>>
-    : fmt_utils::null_spec_formatter_base {
+    : fmt_utils::charspec_formatter_base<'l', 's'> {
+    //  'l': name{str...}
+    //  's': {str...}
 
     template <typename FormatContext>
     auto format(const meta_enum::MetaEnum<EnumType, UnderlyingType, size> &meta,
                 FormatContext &ctx) -> decltype(ctx.out()) {
         auto it = ctx.out();
+        auto spec = spec_handler();
         auto str = fmt_utils::remove_space(std::string(meta.string));
         if (str.empty()) {
-            return format_to(it, "{}({})", meta.name,
-                             static_cast<UnderlyingType>(meta.value));
+            return format_to(it, "{}", meta.name);
         }
-        return format_to(it, "{}({})", meta.name, str);
+        switch (spec) {
+        case 'l': {
+            return format_to(it, "{}{{{}}}", meta.name, str);
+        }
+        case 's': {
+            return format_to(it, "{{{}}}", str);
+        }
+        default: {
+            return it;
+        }
+        }
+        return it;
     }
 };
 

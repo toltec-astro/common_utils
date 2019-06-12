@@ -5,20 +5,25 @@
 #ifndef SPDLOG_FMT_EXTERNAL
 #define SPDLOG_FMT_EXTERNAL
 #endif
-#include <fmt/ostream.h>
-#include <spdlog/spdlog.h>
-#include <spdlog/sinks/stdout_color_sinks.h>
+#include "formatter/container.h"
 #include "meta.h"
+#include <fmt/ostream.h>
+#include <spdlog/sinks/stdout_color_sinks.h>
+#include <spdlog/spdlog.h>
 
 /// Macros to install scope-local logger and log
-#define LOGGER_INIT2(level_, name) inline static const auto logger = [] () { \
-    auto color_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>(); \
-    auto logger = std::make_shared<spdlog::logger>(name, std::move(color_sink)); \
-    logger->set_level(level_); \
-    return logger; \
-}()
+#define LOGGER_INIT2(level_, name)                                             \
+    inline static const auto logger = []() {                                   \
+        auto color_sink =                                                      \
+            std::make_shared<spdlog::sinks::stdout_color_sink_mt>();           \
+        auto logger =                                                          \
+            std::make_shared<spdlog::logger>(name, std::move(color_sink));     \
+        logger->set_level(level_);                                             \
+        return logger;                                                         \
+    }()
 #define LOGGER_INIT1(level_) LOGGER_INIT2(level_, "")
-#define LOGGER_INIT0() inline static const auto logger = spdlog::default_logger();
+#define LOGGER_INIT0()                                                         \
+    inline static const auto logger = spdlog::default_logger();
 #define LOGGER_INIT(...) GET_MACRO(LOGGER_INIT, __VA_ARGS__)
 #define LOGGER_TRACE(...) SPDLOG_LOGGER_TRACE(logger, __VA_ARGS__)
 #define LOGGER_DEBUG(...) SPDLOG_LOGGER_DEBUG(logger, __VA_ARGS__)
@@ -29,36 +34,46 @@
 
 namespace logging {
 
-template<typename F, typename...Args>
-decltype(auto) quiet(F &&func, Args &&... args) {
-    auto default_log_level = spdlog::default_logger()->level();
-    spdlog::set_level(spdlog::level::off);
-    auto reset = [&default_log_level]() {
-        spdlog::set_level(default_log_level);
-    };
-    if constexpr (std::is_void_v<std::invoke_result_t<F, Args...>>) {
-        FWD(func)(FWD(args)...);
-        reset();
-    } else {
-        decltype(auto) ret = FWD(func)(FWD(args)...);
-        reset();
-        return ret;
+template <typename Prefunc, typename Postfunc, typename... Pargs>
+struct decorator {
+    decorator(std::tuple<Pargs...> &&, Prefunc &&pre_, Postfunc &&post_)
+        : pre(FWD(pre_)), post(FWD(post_)) {}
+    Prefunc &&pre;
+    Postfunc &&post;
+    template <typename F, typename... Args>
+    auto operator()(Pargs &&... pargs, F &&func, Args &&... args) const
+        -> decltype(auto) {
+        decltype(auto) d = pre(pargs...);
+        if constexpr (std::is_void_v<std::invoke_result_t<F, Args...>>) {
+            FWD(func)(FWD(args)...);
+            post(FWD(d));
+        } else {
+            decltype(auto) ret = FWD(func)(FWD(args)...);
+            post(FWD(d));
+            return ret;
+        }
     }
 };
 
+inline const auto quiet = decorator(
+    std::tuple<>{},
+    []() {
+        auto level = spdlog::default_logger()->level();
+        spdlog::set_level(spdlog::level::off);
+        return level;
+    },
+    [](auto &&level) { spdlog::set_level(FWD(level)); });
 
-/**
- * @brief Call a function and log the timing.
- * @param msg The header of the log message.
- * @param func The function to be called.
- * @param params The arguments to call the function with.
- */
-template <typename F, typename... Params>
-decltype(auto) timeit(std::string_view msg, F &&func, Params &&... params) {
-    SPDLOG_INFO("**timeit** {}", msg);
-    // get time before function invocation
-    const auto &start = std::chrono::high_resolution_clock::now();
-    auto report_time = [&msg, &start]() {
+inline const auto timeit = decorator(
+    std::tuple<std::string_view>{},
+    [](auto msg) {
+        SPDLOG_INFO("**timeit** {}", msg);
+        // get time before function invocation
+        auto start = std::chrono::high_resolution_clock::now();
+        return std::make_tuple(msg, start);
+    },
+    [](auto &&p) {
+        const auto &[msg, start] = FWD(p);
         // get time after function invocation
         const auto &stop = std::chrono::high_resolution_clock::now();
         auto elapsed =
@@ -66,19 +81,119 @@ decltype(auto) timeit(std::string_view msg, F &&func, Params &&... params) {
                                                                       start);
         SPDLOG_INFO("**timeit** {} finished in {}ms", msg,
                     elapsed.count() * 1e3);
-    };
-    if constexpr (std::is_void_v<std::invoke_result_t<F, Params...>>) {
-        // static_assert (is_return_void, "return void") ;
-        func(std::forward<decltype(params)>(params)...);
-        report_time();
-    } else {
-        // static_assert (!is_return_void, "return something else");
-        decltype(auto) ret = std::forward<decltype(func)>(func)(
-            std::forward<decltype(params)>(params)...);
-        report_time();
-        return ret;
+    });
+// inline const auto record_time = decorator(
+//     std::tuple<double *>{},
+//     [](auto record) {
+//         // get time before function invocation
+//         return std::make_tuple(record,
+//                                std::chrono::high_resolution_clock::now());
+//     },
+//     [](auto &&p) {
+//         auto &[record, start] = p;
+//         // get time after function invocation
+//         const auto &stop = std::chrono::high_resolution_clock::now();
+//         auto elapsed =
+//             std::chrono::duration_cast<std::chrono::duration<double>>(stop -
+//                                                                       start);
+//         *record = elapsed.count() * 1e3;
+//     });
+//
+inline auto now() { return std::chrono::high_resolution_clock::now(); }
+inline auto elapsed_since(
+    const std::chrono::time_point<std::chrono::high_resolution_clock> &since) {
+    return std::chrono::duration_cast<std::chrono::duration<double>>(
+               std::chrono::high_resolution_clock::now() - since)
+               .count() *
+           1e3;
+}
+
+struct Timer {
+
+    explicit Timer(std::size_t maxlap) : m_timer(maxlap) { reset(); }
+    void reset() {
+        std::fill(m_timer.begin(), m_timer.end(), 0);
+        SPDLOG_DEBUG("timer({}) reset to {}", m_timer.size(), m_timer);
     }
+    void start(std::size_t i) {
+        const auto &now = std::chrono::high_resolution_clock::now();
+        m_timer[i] = std::chrono::duration_cast<std::chrono::duration<double>>(
+                         now - m_zero)
+                         .count() *
+                     1e3; // ms
+        SPDLOG_DEBUG("timer({}) start at {}", i, m_timer[i]);
+    }
+    void stop(std::size_t i) {
+        const auto &now = std::chrono::high_resolution_clock::now();
+        m_timer[i] = std::chrono::duration_cast<std::chrono::duration<double>>(
+                         now - m_zero)
+                             .count() *
+                         1e3 -
+                     m_timer[i]; // ms
+        SPDLOG_DEBUG("timer({}) stop at {}", i, m_timer[i]);
+    }
+    void switch_(std::size_t i, std::size_t j) {
+        stop(i);
+        start(j);
+        SPDLOG_DEBUG("timer switch from {} to {}", i, j);
+    }
+    const double &operator[](std::size_t i) const { return m_timer[i]; }
+
+private:
+    std::vector<double> m_timer{};
+    std::chrono::time_point<std::chrono::high_resolution_clock> m_zero{
+        std::chrono::high_resolution_clock::now()};
 };
 
+// template<typename F, typename...Args>
+// auto quiet(F &&func, Args &&... args) ->decltype(auto) {
+//     auto default_log_level = spdlog::default_logger()->level();
+//     spdlog::set_level(spdlog::level::off);
+//     auto reset = [&default_log_level]() {
+//         spdlog::set_level(default_log_level);
+//     };
+//     if constexpr (std::is_void_v<std::invoke_result_t<F, Args...>>) {
+//         FWD(func)(FWD(args)...);
+//         reset();
+//     } else {
+//         decltype(auto) ret = FWD(func)(FWD(args)...);
+//         reset();
+//         return ret;
+//     }
+// };
+//
+//
+// /**
+//  * @brief Call a function and log the timing.
+//  * @param msg The header of the log message.
+//  * @param func The function to be called.
+//  * @param params The arguments to call the function with.
+//  */
+// template <typename F, typename... Params>
+// decltype(auto) timeit(std::string_view msg, F &&func, Params &&... params) {
+//     SPDLOG_INFO("**timeit** {}", msg);
+//     // get time before function invocation
+//     const auto &start = std::chrono::high_resolution_clock::now();
+//     auto report_time = [&msg, &start]() {
+//         // get time after function invocation
+//         const auto &stop = std::chrono::high_resolution_clock::now();
+//         auto elapsed =
+//             std::chrono::duration_cast<std::chrono::duration<double>>(stop -
+//                                                                       start);
+//         SPDLOG_INFO("**timeit** {} finished in {}ms", msg,
+//                     elapsed.count() * 1e3);
+//     };
+//     if constexpr (std::is_void_v<std::invoke_result_t<F, Params...>>) {
+//         // static_assert (is_return_void, "return void") ;
+//         func(std::forward<decltype(params)>(params)...);
+//         report_time();
+//     } else {
+//         // static_assert (!is_return_void, "return something else");
+//         decltype(auto) ret = std::forward<decltype(func)>(func)(
+//             std::forward<decltype(params)>(params)...);
+//         report_time();
+//         return ret;
+//     }
+// };
+//
 } // namespace logging
-
