@@ -1,6 +1,9 @@
 #pragma once
 #include <string>
 #include <type_traits>
+#include <algorithm>
+#include <cassert>
+#include <array>
 
 namespace fmt_utils {
 

@@ -242,7 +242,6 @@ constexpr std::array<EnumType, size> resolveEnumValuesArray(
         constexpr static auto &members = meta.members;                         \
     }
 
-
 // meta enum out of line
 #define META_ENUM_(Type, UnderlyingType, ...)                                  \
     enum class Type : UnderlyingType { __VA_ARGS__ };                          \
@@ -256,6 +255,6 @@ constexpr std::array<EnumType, size> resolveEnumValuesArray(
 
 #define ENUM_META(Type) Type##_meta::meta
 
-#define REGISTER_META_ENUM(Type) \
-    constexpr Type##_meta enum_meta_type(meta_enum::type_t<Type>);                       \
+#define REGISTER_META_ENUM(Type)                                               \
+    constexpr Type##_meta enum_meta_type(meta_enum::type_t<Type>);             \
     constexpr std::true_type enum_has_meta(meta_enum::type_t<Type>)
