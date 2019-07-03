@@ -240,11 +240,22 @@ constexpr std::array<EnumType, size> resolveEnumValuesArray(
         constexpr static auto &name = meta.name;                               \
         constexpr static auto &string = meta.string;                           \
         constexpr static auto &members = meta.members;                         \
-    };                                                                         \
-    Type##_meta enum_meta_type(meta_enum::type_t<Type>);                       \
-    std::true_type enum_has_meta(meta_enum::type_t<Type>)
+    }
 
+
+// meta enum out of line
+#define META_ENUM_(Type, UnderlyingType, ...)                                  \
+    enum class Type : UnderlyingType { __VA_ARGS__ };                          \
+    META_ENUM_IMPL(Type, UnderlyingType, __VA_ARGS__);                         \
+    REGISTER_META_ENUM(Type)
+
+// meta enum in line
 #define META_ENUM(Type, UnderlyingType, ...)                                   \
     enum class Type : UnderlyingType { __VA_ARGS__ };                          \
     META_ENUM_IMPL(Type, UnderlyingType, __VA_ARGS__)
+
 #define ENUM_META(Type) Type##_meta::meta
+
+#define REGISTER_META_ENUM(Type) \
+    constexpr Type##_meta enum_meta_type(meta_enum::type_t<Type>);                       \
+    constexpr std::true_type enum_has_meta(meta_enum::type_t<Type>)

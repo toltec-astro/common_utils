@@ -80,16 +80,37 @@ template <auto v, template <decltype(v), typename...> class TT,
           REQUIRES_(std::is_enum<decltype(v)>)>
 using enum_to_variant_t = decltype(enum_to_variant<v, TT>());
 
+
+// @brief Return the enum members
+template <typename T, REQUIRES_(std::is_enum<T>)> constexpr auto names() {
+    using meta_t = decltype(enum_meta_type(meta_enum::type_t<T>{}));
+    constexpr std::size_t n = meta_t::members.size();
+    std::array<std::string_view, n> names_;
+    for (std::size_t i = 0; i < n; ++i) {
+        names_[i] = meta_t::members[i].name;
+    }
+    return names_;
+}
+
+// @brief Return the enum members
+template <typename T, REQUIRES_(std::is_enum<T>)> constexpr auto name(T v) {
+    using meta_t = decltype(enum_meta_type(meta_enum::type_t<T>{}));
+    return meta_t::from_value(v).value().name;
+}
+
 } // namespace enum_utils
 
 #define BITMASK_(Type, UnderlyingType, ValueMask, ...)                         \
     enum class Type : UnderlyingType { __VA_ARGS__ };                          \
     BITMASK_DETAIL_DEFINE_VALUE_MASK(Type, ValueMask)                          \
-    BITMASK_DETAIL_DEFINE_OPS(Type)                                            \
+    BITMASK_DETAIL_DEFINE_OPS(Type) \
+    META_ENUM_IMPL(Type, UnderlyingType, __VA_ARGS__);                         \
+    REGISTER_META_ENUM(Type)
+
+#define BITMASK(Type, UnderlyingType, ...)                          \
+    enum class Type : UnderlyingType { __VA_ARGS__ };                          \
     META_ENUM_IMPL(Type, UnderlyingType, __VA_ARGS__)
 
-#define BITMASK(Type, UnderlyingType, ValueMask, ...)                          \
-    enum class Type : UnderlyingType { __VA_ARGS__ };                          \
-    BITMASK_DETAIL_DEFINE_VALUE_MASK(Type, ValueMask)                          \
-    BITMASK_DETAIL_DEFINE_OPS_INLINE(Type)                                     \
-    META_ENUM_IMPL(Type, UnderlyingType, __VA_ARGS__)
+#define REGISTER_BITMASK(Type, ValueMask) \
+     BITMASK_DETAIL_DEFINE_VALUE_MASK(Type, ValueMask)                          \
+     BITMASK_DETAIL_DEFINE_OPS(Type)

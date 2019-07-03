@@ -6,6 +6,29 @@
 namespace alg {
 
 /**
+ * @brief Return argmin.
+ */
+template <typename Derived, typename = std::enable_if_t<
+                                std::is_arithmetic_v<typename Derived::Scalar>>>
+auto argmin(const Eigen::DenseBase<Derived> &m) {
+    static_assert(Derived::IsVectorAtCompileTime, "REQUIRES VECTOR TYPE");
+    Eigen::Index imin = 0;
+    m.minCoeff(&imin);
+    return imin;
+}
+
+/**
+ * @brief Return arg nearest.
+ */
+template <typename Derived, typename = std::enable_if_t<
+                                std::is_arithmetic_v<typename Derived::Scalar>>>
+auto argeq(const Eigen::DenseBase<Derived> &m, typename Derived::Scalar v) {
+    static_assert(Derived::IsVectorAtCompileTime, "REQUIRES VECTOR TYPE");
+    auto imin = argmin((m.derived().array() - v).abs());
+    return std::make_pair(imin, m[imin] - v);
+}
+
+/**
  * @brief Return mean.
  * This promote the type to double for shorter types.
  */

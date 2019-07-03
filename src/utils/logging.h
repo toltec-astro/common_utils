@@ -34,9 +34,11 @@
 
 namespace logging {
 
+namespace internal {
+
 template <typename Prefunc, typename Postfunc, typename... Pargs>
-struct decorator {
-    decorator(std::tuple<Pargs...> &&, Prefunc &&pre_, Postfunc &&post_)
+struct decorated_invoke {
+    decorated_invoke(std::tuple<Pargs...> &&, Prefunc &&pre_, Postfunc &&post_)
         : pre(FWD(pre_)), post(FWD(post_)) {}
     Prefunc &&pre;
     Postfunc &&post;
@@ -55,7 +57,9 @@ struct decorator {
     }
 };
 
-inline const auto quiet = decorator(
+}  // namespace
+
+inline const auto quiet = internal::decorated_invoke(
     std::tuple<>{},
     []() {
         auto level = spdlog::default_logger()->level();
@@ -64,7 +68,7 @@ inline const auto quiet = decorator(
     },
     [](auto &&level) { spdlog::set_level(FWD(level)); });
 
-inline const auto timeit = decorator(
+inline const auto timeit = internal::decorated_invoke(
     std::tuple<std::string_view>{},
     [](auto msg) {
         SPDLOG_INFO("**timeit** {}", msg);
@@ -82,23 +86,7 @@ inline const auto timeit = decorator(
         SPDLOG_INFO("**timeit** {} finished in {}ms", msg,
                     elapsed.count() * 1e3);
     });
-// inline const auto record_time = decorator(
-//     std::tuple<double *>{},
-//     [](auto record) {
-//         // get time before function invocation
-//         return std::make_tuple(record,
-//                                std::chrono::high_resolution_clock::now());
-//     },
-//     [](auto &&p) {
-//         auto &[record, start] = p;
-//         // get time after function invocation
-//         const auto &stop = std::chrono::high_resolution_clock::now();
-//         auto elapsed =
-//             std::chrono::duration_cast<std::chrono::duration<double>>(stop -
-//                                                                       start);
-//         *record = elapsed.count() * 1e3;
-//     });
-//
+
 inline auto now() { return std::chrono::high_resolution_clock::now(); }
 inline auto elapsed_since(
     const std::chrono::time_point<std::chrono::high_resolution_clock> &since) {
@@ -107,6 +95,30 @@ inline auto elapsed_since(
                .count() *
            1e3;
 }
+
+struct scoped_timeit {
+    scoped_timeit(std::string_view msg_, double *t = nullptr)
+        : msg(msg_), elapsed(t) {
+        SPDLOG_INFO("**timeit** {}", msg);
+    }
+    ~scoped_timeit() {
+        *elapsed = elapsed_since(t0);
+        SPDLOG_INFO("**timeit** {} finished in {}ms", msg, *elapsed);
+    }
+    std::chrono::time_point<std::chrono::high_resolution_clock> t0{now()};
+    std::string_view msg{""};
+    double *elapsed{nullptr};
+};
+
+template <auto level_> struct scoped_loglevel {
+    scoped_loglevel() {
+        level = spdlog::default_logger()->level();
+        spdlog::set_level(level_);
+    }
+    ~scoped_loglevel() { spdlog::set_level(level); }
+    spdlog::level::level_enum level;
+};
+using scoped_quiet = scoped_loglevel<spdlog::level::off>;
 
 struct Timer {
 

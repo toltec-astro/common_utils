@@ -19,8 +19,8 @@ public:
     using storage_t = std::map<key_t, value_t>;
 
     Config() = default;
-    Config(storage_t config) : m_config(std::move(config)) {}
-    Config(const std::initializer_list<storage_t::value_type> &config)
+    explicit Config(storage_t config) : m_config(std::move(config)) {}
+    explicit Config(const std::initializer_list<storage_t::value_type> &config)
         : Config(storage_t{config}) {}
 
     inline bool has(const key_t &k) const {
@@ -84,15 +84,6 @@ public:
         return std::get<T>(this->m_config.at(key));
     }
 
-    template <typename T> inline T& get_ref(const key_t &k) {
-        if (!has(k)) {
-            this->m_config[k] = {};
-            SPDLOG_TRACE("add config key={}", k);
-        }
-        SPDLOG_TRACE("get_ref config key={}", k);
-        return std::get<T>(at(k));
-    }
-
     template <typename T> inline T get(const std::string &key) const {
         const auto & v = at(key);
         if (std::holds_alternative<std::monostate>(v)) {
@@ -113,10 +104,8 @@ public:
         return get<std::string>(key);
     }
 
-    template <typename T> inline decltype(auto) set(const key_t &k, const T &v) {
-        this->m_config[k] = v;
-        SPDLOG_TRACE("set config key={} value={}", k, at(k));
-        return std::get<T>(at(k));
+    template <typename T> inline void set(const key_t &key, T&& v) {
+        at_or_add(key) = FWD(v);
     }
 
     std::string pformat() const {
@@ -162,6 +151,10 @@ public:
         return at(key);
     }
 
+    Config &merge(Config other) {
+        m_config.merge(std::move(other.m_config));
+        return *this;
+    }
     private:
         storage_t m_config{};
 

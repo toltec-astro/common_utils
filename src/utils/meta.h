@@ -69,6 +69,8 @@ constexpr void static_for_impl(Func &&f, std::integer_sequence<T, Is...>) {
 template<auto v>
 using scalar_t = std::integral_constant<decltype(v), v>;
 
+template <typename T> struct type_t { using type = T; };
+
 template <typename T, T Begin, T End, class Func>
 constexpr void static_for(Func &&f) {
     internal::static_for_impl<T, Begin>(
@@ -328,6 +330,7 @@ auto fwd_capture_impl(Ts &&... xs) {
 #define REQUIRES(...) typename = std::enable_if_t<(__VA_ARGS__::value)>
 #define REQUIRES_(...) std::enable_if_t<(__VA_ARGS__::value), int> = 0
 #define REQUIRES_V(...) typename = std::enable_if_t<(__VA_ARGS__)>
+#define REQUIRES_V_(...) std::enable_if_t<(__VA_ARGS__), int> = 0
 #define REQUIRES_RT(...)                                                       \
     std::enable_if_t<(__VA_ARGS__::value), typename __VA_ARGS__::type>
 

@@ -31,9 +31,16 @@ enum class Mode : int {
     ff = 1 << 4
 };
 #else
-META_ENUM(Mode, int, seq = 1 << 0, thr = 1 << 1, omp = 1 << 2,
-        tbb = 1 << 3, ff = 1 << 4, par = thr | omp | tbb | ff);
-BITMASK_DEFINE_MAX_ELEMENT(Mode, ff);
+// clang-format off
+BITMASK_(Mode, int, 0xFFFF,
+         seq      = 1 << 0,
+         thr      = 1 << 1,
+         omp      = 1 << 2,
+         tbb      = 1 << 3,
+         ff       = 1 << 4,
+         par      = thr | omp | tbb | ff
+         );
+// clang-format on
 #endif
 
 /*
