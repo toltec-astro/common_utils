@@ -3,6 +3,8 @@
 #include <cassert>
 #include <iterator>
 #include <tuple>
+#include <variant>
+#include <optional>
 
 namespace meta {
 
@@ -83,6 +85,59 @@ constexpr void static_for_each(Func &&f) {
     (std::forward<Func>(f)(std::integral_constant<T, Is>{}),...);
 }
 
+template <auto... vs> struct cases;
+
+namespace internal {
+
+template <typename T> struct switch_invoke_impl;
+
+template <auto v0_, auto... vs_> struct switch_invoke_impl<cases<v0_, vs_...>> {
+    using v0 = scalar_t<v0_>;
+    using vs = std::conditional_t<sizeof...(vs_) == 0, void, cases<vs_...>>;
+    template <typename Func, typename... Args>
+    using rt0 = std::invoke_result_t<Func, v0, Args...>;
+
+    template <typename Func, typename... Args>
+    using return_type = std::conditional_t<
+        std::is_same_v<rt0<Func, Args...>, void>, void,
+        std::conditional_t<(std::is_same_v<rt0<Func, Args...>,
+                                           std::invoke_result_t<
+                                               Func, scalar_t<vs_>, Args...>> &&
+                            ...),
+                           std::optional<rt0<Func, Args...>>, void>>;
+};
+
+} // namespace internal
+
+
+template <typename cases, typename Func, typename T, typename... Args>
+auto switch_invoke(Func &&f, T v, Args &&... args) ->
+    typename internal::switch_invoke_impl<cases>::template return_type<
+        Func, Args...> {
+    using impl = internal::switch_invoke_impl<cases>;
+    using v0 = typename impl::v0;
+    constexpr auto return_void = std::is_same_v<void, typename impl::template rt0<Func, Args...>>;
+    if (v == v0::value) {
+        if constexpr (return_void) {
+            std::forward<Func>(f)(v0{}, std::forward<Args>(args)...);
+            return;
+        } else {
+            return std::forward<Func>(f)(v0{}, std::forward<Args>(args)...);
+        }
+    }
+    if constexpr (std::is_same_v<typename impl::vs, void>) {
+        // all checked, no match
+        if constexpr (return_void) {
+            return;
+        } else {
+            return std::nullopt;
+        }
+    } else {
+        // check next
+        return switch_invoke<typename impl::vs>(std::forward<Func>(f), v,
+                                              args...);
+    }
+}
 
 template <typename T, class Func, T... Is, template< typename TT, TT...> typename S>
 constexpr auto apply_sequence(Func &&f, S<T, Is...>)
