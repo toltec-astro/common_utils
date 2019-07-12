@@ -126,19 +126,22 @@ template <> struct IO<Format::Ascii> {
      * @param delim Delimiter characters. Default is space or tab.
      */
     template <typename Scalar, typename IStream>
-    static decltype(auto) parse(IStream &is,
-                                const std::vector<int> &usecols = {},
-                                const std::string &delim = " \t") {
+    static decltype(auto)
+    parse(IStream &is, std::vector<std::string> *header = nullptr,
+          std::vector<std::vector<std::string>> *meta = nullptr,
+          const std::vector<int> &usecols = {},
+          const std::string &delim = " \t") {
         SPDLOG_TRACE("parse as ascii, usecols={} delim=\"{}\"", usecols, delim);
         // is.exceptions(std::ios_base::failbit | std::ios_base::badbit);
         std::string line;
         std::string strnum;
         std::vector<std::vector<Scalar>> data;
-        // clear first
-        data.clear();
+        std::vector<std::vector<std::string>> nondata;
         // parse line by line
         while (std::getline(is, line)) {
-            data.emplace_back(std::vector<Scalar>());
+            std::vector<Scalar> buf_data;
+            std::vector<std::string> buf_nondata;
+            bool is_data = true;
             for (auto i = line.begin(); i != line.end(); ++i) {
                 if (!isascii(*i)) {
                     throw ParseError("not an ascii file");
@@ -154,12 +157,39 @@ template <> struct IO<Format::Ascii> {
                 // a delim (several delims appear together). Ignore this char.
                 if (strnum.empty())
                     continue;
-                // If we reach here, we got a number. Convert it to double.
-                Scalar number;
-                std::istringstream(strnum) >> number;
-                data.back().push_back(number);
+                // If we reach here, we got something.
+                // store a backup in the header in case it is not a number
+                buf_nondata.push_back(strnum);
+                // try convert it to number.
+                if (is_data) {
+                    std::istringstream ss(strnum);
+                    Scalar number;
+                    ss >> number;
+                    if (ss.fail()) {
+                        // not a number, treat as header
+                        is_data = false;
+                    }
+                    if (is_data) {
+                        buf_data.push_back(number);
+                    }
+                }
                 strnum.clear();
             }
+            if (is_data) {
+                data.emplace_back(buf_data);
+            } else {
+                nondata.emplace_back(buf_nondata);
+            }
+        }
+        // handle nondata
+        if (header != nullptr) {
+            *header = nondata[0];
+            if (header[0][0] == "#") {
+                header->erase(header->begin());
+            }
+        }
+        if (meta != nullptr) {
+            *meta = nondata;
         }
         // convert to Eigen matrix
         auto nrows = static_cast<Index>(data.size());

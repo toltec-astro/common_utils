@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vector>
+#include <array>
 #include <map>
 #include <numeric>
 #include <algorithm>
@@ -53,6 +54,7 @@ struct _interpreter {
     PyObject *s_python_function_ion;
     PyObject *s_python_function_ginput;
     PyObject *s_python_function_ylim;
+    PyObject *s_python_function_yscale;
     PyObject *s_python_function_title;
     PyObject *s_python_function_axis;
     PyObject *s_python_function_xlabel;
@@ -158,6 +160,7 @@ private:
         s_python_function_subplot = PyObject_GetAttrString(pymod, "subplot");
         s_python_function_legend = PyObject_GetAttrString(pymod, "legend");
         s_python_function_ylim = PyObject_GetAttrString(pymod, "ylim");
+        s_python_function_yscale = PyObject_GetAttrString(pymod, "yscale");
         s_python_function_title = PyObject_GetAttrString(pymod, "title");
         s_python_function_axis = PyObject_GetAttrString(pymod, "axis");
         s_python_function_xlabel = PyObject_GetAttrString(pymod, "xlabel");
@@ -194,6 +197,7 @@ private:
             || !s_python_function_subplot
             || !s_python_function_legend
             || !s_python_function_ylim
+            || !s_python_function_yscale
             || !s_python_function_title
             || !s_python_function_axis
             || !s_python_function_xlabel
@@ -232,6 +236,7 @@ private:
             || !PyFunction_Check(s_python_function_legend)
             || !PyFunction_Check(s_python_function_annotate)
             || !PyFunction_Check(s_python_function_ylim)
+            || !PyFunction_Check(s_python_function_yscale)
             || !PyFunction_Check(s_python_function_title)
             || !PyFunction_Check(s_python_function_axis)
             || !PyFunction_Check(s_python_function_xlabel)
@@ -308,8 +313,8 @@ template <> struct select_npy_type<uint16_t> { const static NPY_TYPES type = NPY
 template <> struct select_npy_type<uint32_t> { const static NPY_TYPES type = NPY_ULONG; };
 template <> struct select_npy_type<uint64_t> { const static NPY_TYPES type = NPY_UINT64; };
 
-template<typename Numeric>
-PyObject* get_array(const std::vector<Numeric>& v)
+template<typename Numeric, typename Allocator>
+PyObject* get_array(const std::vector<Numeric, Allocator>& v)
 {
     detail::_interpreter::get();    //interpreter needs to be initialized for the numpy commands to work
     NPY_TYPES type = select_npy_type<Numeric>::type;
@@ -341,8 +346,8 @@ PyObject* get_array(const std::vector<Numeric>& v)
 
 #endif // WITHOUT_NUMPY
 
-template<typename Numeric>
-bool plot(const std::vector<Numeric> &x, const std::vector<Numeric> &y, const std::map<std::string, std::string>& keywords)
+template<typename NumericX, typename AllocatorX, typename NumericY, typename AllocatorY>
+bool plot(const std::vector<NumericX, AllocatorX> &x, const std::vector<NumericY, AllocatorY> &y, const std::map<std::string, std::string>& keywords)
 {
     assert(x.size() == y.size());
 
@@ -488,8 +493,8 @@ bool named_hist(std::string label,const std::vector<Numeric>& y, long bins=10, s
     return res;
 }
 
-template<typename NumericX, typename NumericY>
-bool plot(const std::vector<NumericX>& x, const std::vector<NumericY>& y, const std::string& s = "")
+template<typename NumericX, typename AllocatorX, typename NumericY, typename AllocatorY>
+bool plot(const std::vector<NumericX, AllocatorX>& x, const std::vector<NumericY, AllocatorY>& y, const std::string& s = "")
 {
     assert(x.size() == y.size());
 
@@ -798,8 +803,8 @@ bool named_loglog(const std::string& name, const std::vector<Numeric>& x, const 
     return res;
 }
 
-template<typename Numeric>
-bool plot(const std::vector<Numeric>& y, const std::string& format = "")
+template<typename Numeric, typename Allocator>
+bool plot(const std::vector<Numeric, Allocator>& y, const std::string& format = "")
 {
     std::vector<Numeric> x(y.size());
     for(size_t i=0; i<x.size(); ++i) x.at(i) = i;
@@ -878,6 +883,18 @@ void ylim(Numeric left, Numeric right)
 
     PyObject* res = PyObject_CallObject(detail::_interpreter::get().s_python_function_ylim, args);
     if(!res) throw std::runtime_error("Call to ylim() failed.");
+
+    Py_DECREF(args);
+    Py_DECREF(res);
+}
+
+inline void yscale(const std::string & scale)
+{
+    PyObject* args = PyTuple_New(1);
+    PyTuple_SetItem(args, 0, PyUnicode_FromString(scale.c_str()));
+
+    PyObject* res = PyObject_CallObject(detail::_interpreter::get().s_python_function_yscale, args);
+    if(!res) throw std::runtime_error("Call to yscale() failed.");
 
     Py_DECREF(args);
     Py_DECREF(res);
@@ -1430,16 +1447,16 @@ bool plot(const A& a, const B& b, const std::string& format, Args... args)
  * This group of plot() functions is needed to support initializer lists, i.e. calling
  *    plot( {1,2,3,4} )
  */
-inline bool plot(const std::vector<double>& x, const std::vector<double>& y, const std::string& format = "") {
-    return plot<double,double>(x,y,format);
+inline bool plot(const std::vector<double>& x,
+                 const std::vector<double>& y, const std::string& format = "") {
+    return plot<double, std::allocator<double>, double, std::allocator<double>>(x,y,format);
 }
 
 inline bool plot(const std::vector<double>& y, const std::string& format = "") {
-    return plot<double>(y,format);
+    return plot<double, std::allocator<double>>(y,format);
 }
-
 inline bool plot(const std::vector<double>& x, const std::vector<double>& y, const std::map<std::string, std::string>& keywords) {
-    return plot<double>(x,y,keywords);
+    return plot<double, std::allocator<double>, double, std::allocator<double>>(x,y,keywords);
 }
 
 #endif

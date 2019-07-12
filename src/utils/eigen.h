@@ -66,6 +66,61 @@ bool is_contiguous(const Eigen::DenseBase<Derived> &m) {
     return (m.outerStride() == m.innerSize()) && (m.innerStride() == 1);
 }
 
+// https://stackoverflow.com/a/21918950/1824372
+template <typename T> struct PreAllocator {
+    using size_type = std::size_t;
+    using value_type = T;
+    using pointer = T *;
+    using const_pointer = const T *;
+    // using propagate_on_container_move_assignment = std::true_type;
+    using is_always_equal = std::true_type;
+
+    PreAllocator(pointer memory_ptr, size_type memory_size)
+        : memory_ptr(memory_ptr), memory_size(memory_size) {}
+
+    PreAllocator(const_pointer memory_ptr, size_type memory_size)
+        : PreAllocator(const_cast<pointer>(memory_ptr), memory_size) {}
+
+    PreAllocator(const PreAllocator &other) noexcept
+        : memory_ptr(other.memory_ptr), memory_size(other.memory_size) {}
+
+    template <typename U>
+    PreAllocator(const PreAllocator<U> &other) noexcept
+        : memory_ptr(other.memory_ptr), memory_size(other.memory_size) {}
+
+    template <typename U> PreAllocator &operator=(const PreAllocator<U> &) {
+        return *this;
+    }
+    PreAllocator<T> &operator=(const PreAllocator &) { return *this; }
+    ~PreAllocator() = default;
+
+    pointer allocate(size_type, const void * = nullptr) { return memory_ptr; }
+    void deallocate(pointer, size_type) {}
+    size_type max_size() const { return memory_size; }
+
+    template <typename U, typename ... Args>
+    void construct(U*, Args&&...) noexcept {}
+
+private:
+    pointer memory_ptr;
+    std::size_t memory_size;
+};
+
+/**
+ * @brief Create std::vector that views the data held by Eigen types.
+ * @param m The Eigen type.
+ * Default is the same as input.
+ */
+template <typename Derived> auto asstd(const Eigen::DenseBase<Derived> &m_) {
+    using Eigen::Dynamic;
+    using Scalar = typename Derived::Scalar;
+    using Allocator = PreAllocator<Scalar>;
+    // Derived &m = const_cast<Eigen::DenseBase<Derived> &>(m_).derived();
+    auto &m = m_.derived();
+    return std::vector<Scalar, Allocator>(m.size(), Allocator{
+        m.data(), static_cast<typename Allocator::size_type>((m.size()))});
+}
+
 /**
  * @brief Create std::vector from data held by Eigen types. Copies the data.
  * @param m The Eigen type.

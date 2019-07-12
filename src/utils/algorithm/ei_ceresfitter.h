@@ -172,7 +172,7 @@ struct Fitter {
 
 template <typename Fitter_, typename DerivedA, typename DerivedB,
           typename DerivedC, typename DerivedD>
-bool fit(const Eigen::DenseBase<DerivedA> &xdata_,
+auto fit(const Eigen::DenseBase<DerivedA> &xdata_,
          const Eigen::DenseBase<DerivedB> &ydata_,
          const Eigen::DenseBase<DerivedC> &yerr_,
          Eigen::DenseBase<DerivedD> const &params_,
@@ -259,7 +259,7 @@ bool fit(const Eigen::DenseBase<DerivedA> &xdata_,
     SPDLOG_TRACE("fitted paramblock {}",
                  fmt_utils::pprint(paramblock, Fitter_::NP));
     SPDLOG_DEBUG("fitted params {}", params.derived());
-    return summary.termination_type == ceres::CONVERGENCE;
+    return std::make_tuple(summary.termination_type == ceres::CONVERGENCE, std::move(summary));
 }
 
 template <typename Fitter_, typename DerivedA, typename DerivedB,

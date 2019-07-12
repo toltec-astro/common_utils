@@ -204,9 +204,9 @@ template <typename T, typename Format = pformat> struct pprint {
     /**
      * @brief Pretty print data held by std vector
      */
-    template <typename U = T,
+    template <typename U = T, typename Allocator=std::allocator<T>,
               typename = std::enable_if_t<fmt_utils::scalar_traits<U>::value>>
-    pprint(const std::vector<T> &vec) : pprint(vec.data(), vec.size()) {}
+    pprint(const std::vector<T, Allocator> &vec) : pprint(vec.data(), vec.size()) {}
 
     /// This is need to handle VectorBlock specialty
     template <typename U = T,

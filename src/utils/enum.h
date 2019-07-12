@@ -80,7 +80,18 @@ template <auto v, template <decltype(v), typename...> class TT,
           REQUIRES_(std::is_enum<decltype(v)>)>
 using enum_to_variant_t = decltype(enum_to_variant<v, TT>());
 
-// @brief Return the enum members
+// @brief Return the enum member values
+template <typename T, REQUIRES_(std::is_enum<T>)>
+constexpr auto values() {
+    using meta_t = decltype(enum_meta_type(meta_enum::type_t<T>{}));
+    constexpr std::size_t n = meta_t::members.size();
+    std::array<T, n> values_;
+    for (std::size_t i = 0; i < n; ++i) {
+        values_[i] = meta_t::members[i].value;
+    }
+    return values_;
+}
+// @brief Return the enum member names
 template <typename T, REQUIRES_(std::is_enum<T>)>
 constexpr auto names() {
     using meta_t = decltype(enum_meta_type(meta_enum::type_t<T>{}));

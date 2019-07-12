@@ -55,7 +55,7 @@ type_variant_impl(std::index_sequence<Is...>);
 using type_variant_t = decltype(type_variant_impl(
     std::declval<std::make_index_sequence<nctypes.size()>>()));
 
-type_variant_t dispatch_as_variant(netCDF::NcType::ncType t) {
+inline type_variant_t dispatch_as_variant(netCDF::NcType::ncType t) {
     type_variant_t var{};
     using T = netCDF::NcType::ncType;
     switch (t) {

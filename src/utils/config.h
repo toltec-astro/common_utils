@@ -15,7 +15,8 @@ class Config {
 
 public:
     using key_t = std::string;
-    using value_t = std::variant<std::monostate, bool, int, double, std::string>;
+    using value_t =
+        std::variant<std::monostate, bool, int, double, std::string>;
     using storage_t = std::map<key_t, value_t>;
 
     Config() = default;
@@ -29,18 +30,20 @@ public:
     inline bool is_set(const key_t &k) const {
         return has(k) && !std::holds_alternative<std::monostate>(at(k));
     }
-    template<typename F>
-    inline auto try_call_with(const key_t &k, F&& f) const {
+    template <typename F>
+    inline auto try_call_with(const key_t &k, F &&f) const {
         SPDLOG_TRACE("try call with config key={} value={}", k, at(k));
         bool called = false;
-        auto fn = [&](auto&& v) {
-                if constexpr (std::is_invocable_v<F, DECAY(v)>) {
-                    SPDLOG_TRACE("f({}={}) called", k, at(k));
-                    called = true;
-                    return std::invoke(FWD(f), FWD(v));
-                }};
-        using RT = std::invoke_result_t<
-            decltype(std::visit<decltype(fn), value_t>), decltype(fn), value_t>;
+        auto fn = [&](auto &&v) {
+            if constexpr (std::is_invocable_v<F, DECAY(v)>) {
+                SPDLOG_TRACE("f({}={}) called", k, at(k));
+                called = true;
+                return std::invoke(FWD(f), FWD(v));
+            }
+        };
+        using RT =
+            std::invoke_result_t<decltype(std::visit<decltype(fn), value_t>),
+                                 decltype(fn), value_t>;
         if constexpr (std::is_void_v<RT>) {
             std::visit(fn, at(k));
             if (!called) {
@@ -57,12 +60,13 @@ public:
             return std::nullopt;
         }
     }
-    template<typename F>
-    inline auto call_if(const key_t& k, F&& f) const {
+    template <typename F>
+    inline auto call_if(const key_t &k, F &&f) const {
         SPDLOG_TRACE("try call if config key={} value={}", k, at(k));
         using RT = std::invoke_result_t<F>;
         if constexpr (std::is_void_v<RT>) {
-            if (!has(k) || !std::holds_alternative<bool>(at(k)) || !get_typed<bool>(k)) {
+            if (!has(k) || !std::holds_alternative<bool>(at(k)) ||
+                !get_typed<bool>(k)) {
                 SPDLOG_TRACE("f({}) not called", k);
                 return false;
             }
@@ -70,7 +74,8 @@ public:
             FWD(f);
             return true;
         } else {
-            if (!has(k) || !std::holds_alternative<bool>(at(k)) || !get_typed<bool>(k)) {
+            if (!has(k) || !std::holds_alternative<bool>(at(k)) ||
+                !get_typed<bool>(k)) {
                 SPDLOG_TRACE("f({}) not called", k);
                 return std::optional<RT>{};
             }
@@ -79,22 +84,27 @@ public:
         }
     }
 
-    template <typename T> inline T get_typed(const std::string &key) const {
+    template <typename T>
+    inline T get_typed(const std::string &key) const {
         SPDLOG_TRACE("get config key={} value={}", key, at(key));
         return std::get<T>(this->m_config.at(key));
     }
 
-    template <typename T> inline T get(const std::string &key) const {
-        const auto & v = at(key);
+    template <typename T>
+    inline T get(const std::string &key) const {
+        const auto &v = at(key);
         if (std::holds_alternative<std::monostate>(v)) {
             throw std::bad_variant_access();
         }
         std::stringstream ss;
-        std::visit([&ss](auto &&arg) {
-            if constexpr (!std::is_same_v<std::monostate, std::decay_t<decltype(arg)>>){
-                ss << arg;
-            }
-        }, at(key));
+        std::visit(
+            [&ss](auto &&arg) {
+                if constexpr (!std::is_same_v<std::monostate,
+                                              std::decay_t<decltype(arg)>>) {
+                    ss << arg;
+                }
+            },
+            at(key));
         T out;
         ss >> out;
         SPDLOG_TRACE("get config key={} value={} got={}", key, at(key), out);
@@ -104,8 +114,9 @@ public:
         return get<std::string>(key);
     }
 
-    template <typename T> inline void set(const key_t &key, T&& v) {
-        at_or_add(key) = FWD(v);
+    template <typename T>
+    inline void set(const key_t &key, T &&v) {
+        at_or_add(key) = value_t{std::in_place_type<std::decay_t<T>>, FWD(v)};
     }
 
     std::string pformat() const {
@@ -124,7 +135,8 @@ public:
         std::stringstream ss;
         ss << "{";
         for (const auto &p : this->m_config) {
-            ss << "\n   " << std::setw(meta::size_cast<int>(key_width)) << std::right << p.first;
+            ss << "\n   " << std::setw(meta::size_cast<int>(key_width))
+               << std::right << p.first;
             ss << fmt::format(": {}", p.second);
         }
         ss << "\n}";
@@ -135,17 +147,18 @@ public:
         try {
             return this->m_config.at(key);
         } catch (const std::out_of_range &) {
-            SPDLOG_ERROR("invalid key: \"{}\" in config {}", key, pformat());
-            throw;
+            throw std::out_of_range(fmt::format(
+                "invalid key: \"{}\" in config {}", key, pformat()));
         }
     }
     value_t &at(const std::string &key) {
-        return const_cast<value_t&>(const_cast<const Config*>(this)->at(key));
+        return const_cast<value_t &>(const_cast<const Config *>(this)->at(key));
     }
 
-    value_t &at_or_add(const std::string &key) {
+    template <typename value_t_in = value_t>
+    value_t &at_or_add(const std::string &key, value_t_in &&init = value_t{}) {
         if (!has(key)) {
-            this->m_config[key] = {};
+            this->m_config[key] = FWD(init);
             SPDLOG_TRACE("add config key={}", key);
         }
         return at(key);
@@ -155,9 +168,9 @@ public:
         m_config.merge(std::move(other.m_config));
         return *this;
     }
-    private:
-        storage_t m_config{};
 
+private:
+    storage_t m_config{};
 };
 
 } // namespace config

@@ -10,6 +10,7 @@
 #include <fmt/ostream.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/spdlog.h>
+#include <sstream>
 
 /// Macros to install scope-local logger and log
 #define LOGGER_INIT2(level_, name)                                             \
@@ -102,8 +103,11 @@ struct scoped_timeit {
         SPDLOG_INFO("**timeit** {}", msg);
     }
     ~scoped_timeit() {
-        *elapsed = elapsed_since(t0);
-        SPDLOG_INFO("**timeit** {} finished in {}ms", msg, *elapsed);
+        auto t = elapsed_since(t0);
+        if (elapsed != nullptr) {
+            *elapsed = t;
+        }
+        SPDLOG_INFO("**timeit** {} finished in {}ms", msg, t);
     }
     std::chrono::time_point<std::chrono::high_resolution_clock> t0{now()};
     std::string_view msg{""};
@@ -157,55 +161,57 @@ private:
         std::chrono::high_resolution_clock::now()};
 };
 
-// template<typename F, typename...Args>
-// auto quiet(F &&func, Args &&... args) ->decltype(auto) {
-//     auto default_log_level = spdlog::default_logger()->level();
-//     spdlog::set_level(spdlog::level::off);
-//     auto reset = [&default_log_level]() {
-//         spdlog::set_level(default_log_level);
-//     };
-//     if constexpr (std::is_void_v<std::invoke_result_t<F, Args...>>) {
-//         FWD(func)(FWD(args)...);
-//         reset();
-//     } else {
-//         decltype(auto) ret = FWD(func)(FWD(args)...);
-//         reset();
-//         return ret;
-//     }
-// };
-//
-//
-// /**
-//  * @brief Call a function and log the timing.
-//  * @param msg The header of the log message.
-//  * @param func The function to be called.
-//  * @param params The arguments to call the function with.
-//  */
-// template <typename F, typename... Params>
-// decltype(auto) timeit(std::string_view msg, F &&func, Params &&... params) {
-//     SPDLOG_INFO("**timeit** {}", msg);
-//     // get time before function invocation
-//     const auto &start = std::chrono::high_resolution_clock::now();
-//     auto report_time = [&msg, &start]() {
-//         // get time after function invocation
-//         const auto &stop = std::chrono::high_resolution_clock::now();
-//         auto elapsed =
-//             std::chrono::duration_cast<std::chrono::duration<double>>(stop -
-//                                                                       start);
-//         SPDLOG_INFO("**timeit** {} finished in {}ms", msg,
-//                     elapsed.count() * 1e3);
-//     };
-//     if constexpr (std::is_void_v<std::invoke_result_t<F, Params...>>) {
-//         // static_assert (is_return_void, "return void") ;
-//         func(std::forward<decltype(params)>(params)...);
-//         report_time();
-//     } else {
-//         // static_assert (!is_return_void, "return something else");
-//         decltype(auto) ret = std::forward<decltype(func)>(func)(
-//             std::forward<decltype(params)>(params)...);
-//         report_time();
-//         return ret;
-//     }
-// };
-//
+template <typename Func> class progressbar {
+    static const auto overhead = sizeof " [100%]";
+
+    Func func;
+    const std::size_t width;
+    const double scale{100};
+    std::string message;
+    const std::string bar;
+    std::atomic<int> counter{0};
+
+    auto barstr(double perc) {
+        // clamp prog to valid range [0,1]
+        if (perc < 0) {
+            perc = 0;
+        } else if (perc > 1) {
+            perc = 1;
+        }
+        std::stringstream ss;
+        auto barwidth = width - message.size();
+        auto offset = width - static_cast<unsigned>(barwidth * perc);
+        ss << message;
+        ss.write(bar.data() + offset, barwidth);
+        ss << fmt::format("[{:3.0f}%]", scale * perc);
+
+        return ss.str();
+    }
+
+public:
+    progressbar(Func func_, std::size_t linewidth, std::string message_,
+                const char symbol = '.')
+        : func{std::move(func_)}, width{linewidth - overhead},
+          message{std::move(message_)}, bar{std::string(width, symbol) +
+                                            std::string(width, ' ')} {
+        // write(0.0);
+    }
+
+    // not copyable or movable
+    progressbar(const progressbar &) = delete;
+    progressbar &operator=(const progressbar &) = delete;
+    progressbar(progressbar &&) = delete;
+    progressbar &operator=(progressbar &&) = delete;
+
+    ~progressbar() { func(fmt::format("{}\n", barstr(1.0))); }
+
+    auto write(double perc) { func(barstr(perc)); }
+    template <typename N1, typename N2> auto count(N1 total, N2 stride) {
+        ++counter;
+        if (counter % stride == 0) {
+            write(double(counter) / total);
+        }
+    }
+};
+
 } // namespace logging
