@@ -67,8 +67,9 @@ template <> struct IO<Format::Ascii> {
     dump(OStream &os_, const Eigen::EigenBase<Derived> &data,
          const std::vector<std::string> &colnames = {},
          const std::vector<int> &usecols = {}, char delim = ' ') {
+	using Scalar  =    typename Derived::Scalar;
         std::stringstream os;
-        os << std::setprecision(std::numeric_limits<int>::max());
+        os << std::setprecision(std::numeric_limits<Scalar>::digits10 + 1);
         char newline = '\n';
         char comment = '#';
         auto nrows = data.rows();
