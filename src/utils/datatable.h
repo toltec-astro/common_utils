@@ -4,6 +4,7 @@
 #include "enum/meta_enum.h"
 #include <Eigen/Core>
 #include <fstream>
+#include <iomanip>
 
 namespace datatable {
 
