@@ -63,9 +63,11 @@ template <> struct IO<Format::Ascii> {
      */
     template <typename OStream, typename Derived>
     static decltype(auto)
-    dump(OStream &os, const Eigen::EigenBase<Derived> &data,
+    dump(OStream &os_, const Eigen::EigenBase<Derived> &data,
          const std::vector<std::string> &colnames = {},
          const std::vector<int> &usecols = {}, char delim = ' ') {
+        std::stringstream os;
+        os << std::setprecision(std::numeric_limits<int>::max());
         char newline = '\n';
         char comment = '#';
         auto nrows = data.rows();
@@ -115,7 +117,8 @@ template <> struct IO<Format::Ascii> {
             }
             os << newline;
         }
-        return os;
+        os_ << os.str();
+        return os_;
     }
 
     /**

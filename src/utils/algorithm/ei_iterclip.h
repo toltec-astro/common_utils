@@ -36,7 +36,7 @@ auto iterclip(F1 &&statsfunc, F2 &&selectfunc, int max_iter = 20) {
             auto old_size = clipped.size();
             std::tie(center, std) = FWD(statsfunc)(eiu::asvec(clipped));
             if (FWD(selectfunc)(center, center, std)) {
-                // if center is which the selecting range,
+                // if center is whithin the selecting range,
                 // the clip will remove outside the selection range (selectfunc
                 // is keepfunc) otherwise the clip will remove the selection
                 // range (selectfunc is clipfunc)
@@ -64,13 +64,14 @@ auto iterclip(F1 &&statsfunc, F2 &&selectfunc, int max_iter = 20) {
             }
         }
         // reaches max_iter
-        if (!converged) {
-            SPDLOG_DEBUG("clip fails to converge after {} iterations",
-                         max_iter);
-        }
+        // if (!converged) {
+        //     SPDLOG_DEBUG("clip fails to converge after {} iterations",
+        //                  max_iter);
+        // }
         // SPDLOG_TRACE("size after clip: {}", clipped.size());
         // get the original selected indexes
         std::vector<Index> selectindex;
+        selectindex.reserve(data.size());
         auto [begin, end] = eigeniter::iters(data);
         for (auto it = begin; it != end; ++it) {
             auto select = FWD(selectfunc)(*it, center, std);
@@ -79,7 +80,7 @@ auto iterclip(F1 &&statsfunc, F2 &&selectfunc, int max_iter = 20) {
                 selectindex.push_back(it.n);
             }
         }
-        return std::make_tuple(selectindex, converged, center, std);
+        return std::make_tuple(std::move(selectindex), converged, center, std);
     };
 }
 

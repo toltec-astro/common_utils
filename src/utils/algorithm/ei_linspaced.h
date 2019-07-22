@@ -21,7 +21,7 @@ void fill_linspaced(Eigen::DenseBase<Derived> const &m_, Args... args) {
         set_linspaced(m);
     } else if constexpr (eigen_utils::is_plain_v<Derived>) {
         // check continugous
-        assert(eigen_utils::is_continugous(m));
+        assert(eigen_utils::is_contiguous(m));
         SPDLOG_TRACE("fill matrix");
         // make a map and assign to it
         set_linspaced(typename eigen_utils::type_traits<Derived>::VecMap(m.data(), m.size()));
@@ -31,6 +31,15 @@ void fill_linspaced(Eigen::DenseBase<Derived> const &m_, Args... args) {
         fill_linspaced(tmp, args...);
         m = std::move(tmp);
     }
+}
+
+template <typename Scalar> auto arange(Scalar start, Scalar stop, Scalar step) {
+    using Eigen::Index;
+    Index size =
+        Index((stop - std::numeric_limits<Scalar>::epsilon() - start) / step) +
+        1;
+    return Eigen::Matrix<Scalar, Eigen::Dynamic, 1>::LinSpaced(
+        size, start, start + (size - 1) * step);
 }
 
 }  // namespace alg

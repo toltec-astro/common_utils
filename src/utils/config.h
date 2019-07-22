@@ -21,7 +21,7 @@ public:
 
     Config() = default;
     explicit Config(storage_t config) : m_config(std::move(config)) {}
-    explicit Config(const std::initializer_list<storage_t::value_type> &config)
+    Config(const std::initializer_list<storage_t::value_type> &config)
         : Config(storage_t{config}) {}
 
     inline bool has(const key_t &k) const {
@@ -114,9 +114,11 @@ public:
         return get<std::string>(key);
     }
 
-    template <typename T>
-    inline void set(const key_t &key, T &&v) {
-        at_or_add(key) = value_t{std::in_place_type<std::decay_t<T>>, FWD(v)};
+    template <typename T> inline void set(const key_t &key, T &&v) {
+        using T_ = std::decay_t<T>;
+        using VT = std::conditional_t<std::is_same_v<T_, const char *>,
+                                      std::string, T_>;
+        at_or_add(key) = value_t{std::in_place_type<VT>, FWD(v)};
     }
 
     std::string pformat() const {
@@ -164,8 +166,9 @@ public:
         return at(key);
     }
 
-    Config &merge(Config other) {
-        m_config.merge(std::move(other.m_config));
+    Config &update(Config other) {
+        other.m_config.merge(std::move(m_config));
+        m_config = std::move(other.m_config);
         return *this;
     }
 

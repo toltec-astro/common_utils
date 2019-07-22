@@ -175,4 +175,24 @@ auto index(const T& v) {
     return index(v.size());
 }
 
-} // namespace utils
+/// @brief Parse python-like slice string.
+template <typename T> auto parse_slice(const std::string &) {
+    std::optional<T> start{};
+    std::optional<T> end{};
+    std::optional<T> step{};
+    return std::make_tuple(std::move(start), std::move(end), std::move(step));
+}
+
+// std::vector<T>&& src - src MUST be an rvalue reference
+// std::vector<T> src - src MUST NOT, but MAY be an rvalue reference
+template <typename T>
+inline void append(std::vector<T> source, std::vector<T> &destination) {
+    if (destination.empty())
+        destination = std::move(source);
+    else
+        destination.insert(std::end(destination),
+                           std::make_move_iterator(std::begin(source)),
+                           std::make_move_iterator(std::end(source)));
+}
+
+} // namespace container_utils

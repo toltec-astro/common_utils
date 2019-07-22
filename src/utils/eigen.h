@@ -1,5 +1,7 @@
 #pragma once
 #include <Eigen/Core>
+#include <fmt/format.h>
+#include <spdlog/spdlog.h>
 #include <type_traits>
 
 namespace Eigen {
@@ -63,7 +65,14 @@ struct type_traits<T, std::enable_if_t<is_eigen_v<T>>> : std::true_type {
 
 template <typename Derived>
 bool is_contiguous(const Eigen::DenseBase<Derived> &m) {
-    return (m.outerStride() == m.innerSize()) && (m.innerStride() == 1);
+    //     SPDLOG_TRACE(
+    //         "size={} outerstride={} innerstride={} outersize={}
+    //         innersize={}", m.size(), m.outerStride(), m.innerStride(),
+    //         m.outerSize(), m.innerSize());
+    if (m.innerStride() != 1) {
+        return false;
+    }
+    return (m.size() <= m.innerSize()) || (m.outerStride() == m.innerSize());
 }
 
 // https://stackoverflow.com/a/21918950/1824372
