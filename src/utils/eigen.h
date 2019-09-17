@@ -117,7 +117,7 @@ private:
 
 /**
  * @brief Create std::vector that views the data held by Eigen types.
- * @param m The Eigen type.
+ * @param m_ Input data of Eigen type.
  * Default is the same as input.
  */
 template <typename Derived> auto asstd(const Eigen::DenseBase<Derived> &m_) {
@@ -183,6 +183,19 @@ template <Eigen::StorageOptions order = Eigen::ColMajor, typename Scalar,
 auto asvec(const std::vector<Scalar, Rest...> &v) {
     return Eigen::Map<const Eigen::Matrix<Scalar, Eigen::Dynamic, 1, order>>(
         v.data(), v.size());
+}
+
+/**
+ * @brief Create Eigen::Matrix from std::vector of std::pair.
+ */
+template <typename Scalar, typename... Rest>
+auto tomat(const std::vector<std::pair<Scalar, Scalar>, Rest...> &v) {
+    Eigen::Matrix<Scalar, 2, Eigen::Dynamic> m(2, v.size());
+    for (Eigen::Index i = 0; i < m.cols(); ++i) {
+        m.coeffRef(0, i) = v[static_cast<std::size_t>(i)].first;
+        m.coeffRef(1, i) = v[static_cast<std::size_t>(i)].second;
+    }
+    return m;
 }
 
 /**

@@ -109,6 +109,10 @@ template <auto v0_, auto... vs_> struct switch_invoke_impl<cases<v0_, vs_...>> {
 
 } // namespace internal
 
+template <class T, class U> struct is_one_of;
+template <class T, class... Ts>
+struct is_one_of<T, std::variant<Ts...>>
+    : std::bool_constant<(std::is_same_v<T, Ts> || ...)> {};
 
 template <typename cases, typename Func, typename T, typename... Args>
 auto switch_invoke(Func &&f, T v, Args &&... args) ->
@@ -415,7 +419,6 @@ auto fwd_capture_impl(Ts &&... xs) {
         static yes_type test(decltype(&U::member_name));                       \
         template <typename U>                                                  \
         static no_type test(...);                                              \
-                                                                               \
     public:                                                                    \
         static constexpr bool value =                                          \
             sizeof(test<class_name>(0)) == sizeof(yes_type);                   \

@@ -87,11 +87,27 @@ public:
     template <typename T>
     inline T get_typed(const std::string &key) const {
         SPDLOG_TRACE("get config key={} value={}", key, at(key));
-        return std::get<T>(this->m_config.at(key));
+        if constexpr (meta::is_instance<T, std::optional>::value) {
+            // no throw
+            if (has(key)) {
+                return get_typed<typename T::value_type>(key);
+            }
+            return std::nullopt;
+        } else {
+            // may throw
+            return std::get<T>(at(key));
+        }
+    }
+    template <typename T>
+    inline T get_typed(const std::string &key, T &&defval) const {
+        if (has(key)) {
+            return get_typed<T>(key);
+        } else {
+            return FWD(defval);
+        }
     }
 
-    template <typename T>
-    inline T get(const std::string &key) const {
+    template <typename T> inline T get_lexical(const std::string &key) const {
         const auto &v = at(key);
         if (std::holds_alternative<std::monostate>(v)) {
             throw std::bad_variant_access();
@@ -110,8 +126,9 @@ public:
         SPDLOG_TRACE("get config key={} value={} got={}", key, at(key), out);
         return out;
     }
-    inline std::string get_str(const std::string &key) const {
-        return get<std::string>(key);
+    template <typename... Args>
+    inline std::string get_str(const std::string &key, Args &&... args) const {
+        return get_lexical<std::string>(key, FWD(args)...);
     }
 
     template <typename T> inline void set(const key_t &key, T &&v) {
@@ -158,9 +175,9 @@ public:
     }
 
     template <typename value_t_in = value_t>
-    value_t &at_or_add(const std::string &key, value_t_in &&init = value_t{}) {
+    value_t &at_or_add(const std::string &key) {
         if (!has(key)) {
-            this->m_config[key] = FWD(init);
+            this->m_config[key] = value_t_in{};
             SPDLOG_TRACE("add config key={}", key);
         }
         return at(key);

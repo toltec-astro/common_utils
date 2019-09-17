@@ -94,8 +94,11 @@ inline type_variant_t dispatch_as_variant(netCDF::NcType::ncType t) {
 
 } // namespace internal
 
-/// @brief Visit variable with strong type.
-/// @param func Callable with signature func(var, T{})
+/*
+ * @brief Visit variable with strong type.
+ * @param func Callable with signature func(var, T{})
+ * @param var NC variable.
+ */
 template <typename F, typename T>
 auto visit(F &&func, T &&var) -> decltype(auto) {
     return std::visit(
@@ -106,18 +109,30 @@ auto visit(F &&func, T &&var) -> decltype(auto) {
         internal::dispatch_as_variant(var.getType().getTypeClass()));
 }
 
+template <typename T, typename Var> void validate_type(const Var &var) {
+    constexpr auto expected_type_class = internal::nctype_v<T>;
+    constexpr std::string_view kind = []() {
+        if constexpr (std::is_base_of_v<netCDF::NcAtt, Var>) {
+            return "attribute";
+        } else {
+            return "variable";
+        }
+    }();
+    const auto &type = var.getType();
+    const auto &name = var.getName();
+    if (expected_type_class != type.getTypeClass()) {
+        throw std::runtime_error(fmt::format(
+            "mismatch {} {} of type {} with buffer of type {}", kind, name,
+            type.getName(), netCDF::NcType{expected_type_class}.getName()));
+    }
+}
+
 template <typename Att, typename Buffer,
           REQUIRES_(std::is_base_of<netCDF::NcAtt, Att>)>
 void getattr(const Att &att, Buffer &buf) {
     auto name = att.getName();
     auto type = att.getType();
-    constexpr auto buftype_class =
-        internal::nctype_v<typename Buffer::value_type>;
-    if (buftype_class != type.getTypeClass()) {
-        throw std::runtime_error(fmt::format(
-            "cannot get attr {} of type {} to buffer of type {}", name,
-            type.getName(), netCDF::NcType{buftype_class}.getName()));
-    }
+    validate_type<typename Buffer::value_type>(att);
     if constexpr (std::is_same_v<Buffer, std::string>) {
         att.getValues(buf);
     } else {
@@ -138,7 +153,8 @@ template <typename T, typename Att,
           REQUIRES_(std::is_base_of<netCDF::NcAtt, Att>)>
 T getattr(const Att &att) {
     using namespace netCDF;
-    constexpr bool is_scalar = std::is_arithmetic_v<T>;
+    constexpr bool is_scalar =
+        meta::is_one_of<T, internal::type_variant_t>::value;
     using Buffer = std::conditional_t<is_scalar, std::vector<T>, T>;
     auto len = att.getAttLength();
     // check scalar
@@ -152,12 +168,57 @@ T getattr(const Att &att) {
     // get var
     Buffer buf;
     buf.resize(len);
-    getattr(att, buf);
+    getattr(att, buf); // type is validated here
     if constexpr (is_scalar) {
         return buf[0];
     } else {
         return buf;
     }
+}
+
+template <typename T, REQUIRES_(meta::is_one_of<T, internal::type_variant_t>)>
+T getscalar(const netCDF::NcVar &var) {
+    validate_type<T>(var);
+    if (var.getDimCount() != 0) {
+        throw std::runtime_error(
+            fmt::format("variable {} is not a scalar", var.getName()));
+    }
+    using namespace netCDF;
+    // get var
+    T buf;
+    var.getVar(&buf);
+    return buf;
+}
+
+inline std::string getstr(const netCDF::NcVar &var) {
+    validate_type<char>(var);
+    if (var.getDimCount() != 1) {
+        throw std::runtime_error(
+            fmt::format("variable {} is not a string", var.getName()));
+    }
+    using namespace netCDF;
+    std::vector<char> buf(var.getDim(0).getSize());
+    var.getVar(buf.data());
+    return std::string(buf.data());
+}
+
+inline std::vector<std::string> getstrs(const netCDF::NcVar &var) {
+    validate_type<char>(var);
+    if (var.getDimCount() != 2) {
+        throw std::runtime_error(
+            fmt::format("variable {} is not a string vector", var.getName()));
+    }
+    using namespace netCDF;
+    auto nstrs = var.getDim(0).getSize();
+    auto nchars = var.getDim(1).getSize();
+    std::vector<char> buf(nchars * nstrs);
+    var.getVar(buf.data());
+    std::vector<std::string> result;
+    result.reserve(nstrs);
+    for (std::size_t i = 0; i < nstrs; ++i) {
+        result.emplace_back(std::string(buf.data() + i * nchars));
+    }
+    return result;
 }
 
 template <typename var_t_>
@@ -190,7 +251,9 @@ struct pprint {
             att);
         return os.str();
     }
-
+    static auto format_ncdim(const netCDF::NcDim &dim) {
+        return fmt::format("{}({})", dim.getName(), dim.getSize());
+    }
     static auto format_ncvar(const netCDF::NcVar &var,
                              std::size_t key_width = 0) {
         std::stringstream os;
@@ -204,9 +267,10 @@ struct pprint {
         if (dims.size() > 0) {
             os << " [";
             for (auto it = dims.begin(); it != dims.end(); ++it) {
-                if (it != dims.begin())
+                if (it != dims.begin()) {
                     os << ", ";
-                os << fmt::format("{}({})", it->getName(), it->getSize());
+                }
+                os << format_ncdim(*it);
             }
             os << "]";
         }
@@ -253,6 +317,8 @@ struct pprint {
             return os << pprint::format_ncfile(pp.nc);
         } else if constexpr (std::is_same_v<var_t, netCDF::NcVar>) {
             return os << pprint::format_ncvar(pp.nc);
+        } else if constexpr (std::is_same_v<var_t, netCDF::NcDim>) {
+            return os << pprint::format_ncdim(pp.nc);
         } else if constexpr (std::is_same_v<var_t, netCDF::NcVarAtt>) {
             return os << pprint::format_ncvaratt(pp.nc);
         } else {
@@ -260,6 +326,98 @@ struct pprint {
                           "UNABLE TO FORMAT TYPE");
         }
     }
+};
+
+struct NcNodeMapper {
+    using NcFile = netCDF::NcFile;
+    using NcVar = netCDF::NcVar;
+    using NcDim = netCDF::NcDim;
+    using NcGroupAtt = netCDF::NcGroupAtt;
+    using key_t = std::string_view;
+    using node_t = std::variant<std::monostate, netCDF::NcFile, netCDF::NcVar,
+                                netCDF::NcDim, netCDF::NcGroupAtt>;
+    using keymap_t = std::unordered_map<key_t, std::string>;
+    using nodemap_t = std::unordered_map<key_t, node_t>;
+
+    NcNodeMapper(const NcFile &ncfile_, keymap_t keymap)
+        : _(std ::move(keymap)), ncfile(ncfile_) {}
+
+    template <typename T = node_t, typename... Args>
+    bool has_node(key_t key, Args &&... keys) {
+        if constexpr (std::is_same_v<T, node_t>) {
+            for (const auto &k : {key, keys...}) {
+                if (!(has_node<NcVar>(k) || has_node<NcDim>(k) ||
+                      has_node<NcGroupAtt>(k))) {
+                    return false;
+                }
+            }
+            return true;
+        } else {
+            if constexpr (sizeof...(keys) == 0) {
+                nodes.emplace(std::piecewise_construct, std::make_tuple(key),
+                              std::make_tuple());
+                auto getnode = [&]() {
+                    if constexpr (std::is_same_v<T, NcVar>) {
+                        return ncfile.getVar(_[key]);
+                    } else if constexpr (std::is_same_v<T, NcDim>) {
+                        return ncfile.getDim(_[key]);
+                    } else if constexpr (std::is_same_v<T, NcGroupAtt>) {
+                        return ncfile.getAtt(_[key]);
+                    }
+                };
+                constexpr auto gettype = []() {
+                    if constexpr (std::is_same_v<T, NcVar>) {
+                        return "var";
+                    } else if constexpr (std::is_same_v<T, NcDim>) {
+                        return "dim";
+                    } else if constexpr (std::is_same_v<T, NcGroupAtt>) {
+                        return "att";
+                    }
+                };
+                if (const auto &v = getnode(); !v.isNull()) {
+                    SPDLOG_TRACE("{} key={} value={} ", gettype(), key,
+                                 nc_utils::pprint{v});
+                    nodes[key] = v;
+                    return true;
+                }
+                SPDLOG_TRACE("{} key={} ({}) not found", gettype(), key,
+                             _[key]);
+                nodes.erase(key);
+                return false;
+            } else {
+                for (const auto &k : {key, keys...}) {
+                    if (!has_node<T>(k)) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+        }
+    }
+    template <typename... Args> bool has_var(Args &&... keys) {
+        return has_node<NcVar>(key_t{keys}...);
+    }
+    template <typename... Args> bool has_dim(Args &&... keys) {
+        return has_node<NcDim>(key_t{keys}...);
+    }
+    template <typename... Args> bool has_att(Args &&... keys) {
+        return has_node<NcGroupAtt>(key_t{keys}...);
+    }
+    template <typename T = node_t> const T &node(key_t key) {
+        if constexpr (std::is_same_v<T, node_t>) {
+            return nodes.at(key);
+        } else {
+            return std::get<T>(nodes.at(key));
+        }
+    }
+    const auto &var(key_t key) { return node<NcVar>(key); }
+    const auto &dim(key_t key) { return node<NcDim>(key); }
+    const auto &att(key_t key) { return node<NcGroupAtt>(key); }
+    keymap_t _;
+
+private:
+    nodemap_t nodes;
+    const netCDF::NcFile &ncfile;
 };
 
 } // namespace  nc_utils

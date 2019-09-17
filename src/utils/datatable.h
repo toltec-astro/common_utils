@@ -8,7 +8,6 @@
 
 namespace datatable {
 
-/// Default Index type from Eigen.
 using Index = Eigen::Index;
 
 /// @brief Throw when there is an error in parsing data table.
@@ -55,7 +54,7 @@ template <Format format> struct IO {
 template <> struct IO<Format::Ascii> {
     /**
      * @brief Dump as ascii table.
-     * @param os Output stream to dump the data to
+     * @param os_ Output stream to dump the data to
      * @param data The data to be dumped
      * @param colnames The column names to use.
      * @param usecols The indexes of columns to include in the output.
@@ -126,6 +125,8 @@ template <> struct IO<Format::Ascii> {
     /**
      * @brief Parse as Ascii table.
      * @param is Input stream to be parsed.
+     * @param header Column names.
+     * @param meta Additional commented lines.
      * @param usecols The indexes of columns to include in the result.
      *  Python-style negative indexes are supported.
      * @param delim Delimiter characters. Default is space or tab.
@@ -209,7 +210,7 @@ template <> struct IO<Format::Ascii> {
                         "invalid column index {} for table of ncols={}", i,
                         ncols));
             }
-            ncols_use = usecols.size();
+            ncols_use = meta::size_cast<Index>(usecols.size());
             SPDLOG_TRACE("using {} cols out of {}", ncols_use, ncols);
         }
         using Eigen::Dynamic;
