@@ -73,6 +73,8 @@ struct _interpreter {
     PyObject *s_python_function_suptitle;
     PyObject *s_python_function_subplots_adjust;
     PyObject *s_python_function_axvline;
+    PyObject *s_python_function_axhline;
+    PyObject *s_python_function_gca;
 
     /* For now, _interpreter is implemented as a singleton since its currently not possible to have
        multiple independent embedded python interpreters without patching the python source code
@@ -182,81 +184,74 @@ private:
         s_python_function_suptitle = PyObject_GetAttrString(pymod, "suptitle");
         s_python_function_subplots_adjust = PyObject_GetAttrString(pymod, "subplots_adjust");
         s_python_function_axvline = PyObject_GetAttrString(pymod, "axvline");
+        s_python_function_axhline = PyObject_GetAttrString(pymod, "axhline");
+        s_python_function_gca = PyObject_GetAttrString(pymod, "gca");
 
-        if(    !s_python_function_show
-            || !s_python_function_close
-            || !s_python_function_draw
-            || !s_python_function_pause
-            || !s_python_function_figure
-            || !s_python_function_plot
-            || !s_python_function_quiver
-            || !s_python_function_semilogx
-            || !s_python_function_semilogy
-            || !s_python_function_loglog
-            || !s_python_function_fill_between
-            || !s_python_function_subplot
-            || !s_python_function_legend
-            || !s_python_function_ylim
-            || !s_python_function_yscale
-            || !s_python_function_title
-            || !s_python_function_axis
-            || !s_python_function_xlabel
-            || !s_python_function_ylabel
-            || !s_python_function_grid
-            || !s_python_function_xlim
-            || !s_python_function_ion
-            || !s_python_function_ginput
-            || !s_python_function_save
-            || !s_python_function_clf
-            || !s_python_function_annotate
-            || !s_python_function_errorbar
-            || !s_python_function_errorbar
-            || !s_python_function_tight_layout
-            || !s_python_function_stem
-            || !s_python_function_xkcd
-            || !s_python_function_text
-            || !s_python_function_suptitle
-            || !s_python_function_subplots_adjust
-            || !s_python_function_axvline
+        if (!s_python_function_show || !s_python_function_close ||
+            !s_python_function_draw || !s_python_function_pause ||
+            !s_python_function_figure || !s_python_function_plot ||
+            !s_python_function_quiver || !s_python_function_semilogx ||
+            !s_python_function_semilogy || !s_python_function_loglog ||
+            !s_python_function_fill_between || !s_python_function_subplot ||
+            !s_python_function_legend || !s_python_function_ylim ||
+            !s_python_function_yscale || !s_python_function_title ||
+            !s_python_function_axis || !s_python_function_xlabel ||
+            !s_python_function_ylabel || !s_python_function_grid ||
+            !s_python_function_xlim || !s_python_function_ion ||
+            !s_python_function_ginput || !s_python_function_save ||
+            !s_python_function_clf || !s_python_function_annotate ||
+            !s_python_function_errorbar || !s_python_function_errorbar ||
+            !s_python_function_tight_layout || !s_python_function_stem ||
+            !s_python_function_xkcd || !s_python_function_text ||
+            !s_python_function_suptitle || !s_python_function_subplots_adjust ||
+            !s_python_function_axvline || !s_python_function_axhline ||
+            !s_python_function_gca
 
-        ) { throw std::runtime_error("Couldn't find required function!"); }
+        ) {
+            throw std::runtime_error("Couldn't find required function!");
+        }
 
-        if (   !PyFunction_Check(s_python_function_show)
-            || !PyFunction_Check(s_python_function_close)
-            || !PyFunction_Check(s_python_function_draw)
-            || !PyFunction_Check(s_python_function_pause)
-            || !PyFunction_Check(s_python_function_figure)
-            || !PyFunction_Check(s_python_function_plot)
-            || !PyFunction_Check(s_python_function_quiver)
-            || !PyFunction_Check(s_python_function_semilogx)
-            || !PyFunction_Check(s_python_function_semilogy)
-            || !PyFunction_Check(s_python_function_loglog)
-            || !PyFunction_Check(s_python_function_fill_between)
-            || !PyFunction_Check(s_python_function_subplot)
-            || !PyFunction_Check(s_python_function_legend)
-            || !PyFunction_Check(s_python_function_annotate)
-            || !PyFunction_Check(s_python_function_ylim)
-            || !PyFunction_Check(s_python_function_yscale)
-            || !PyFunction_Check(s_python_function_title)
-            || !PyFunction_Check(s_python_function_axis)
-            || !PyFunction_Check(s_python_function_xlabel)
-            || !PyFunction_Check(s_python_function_ylabel)
-            || !PyFunction_Check(s_python_function_grid)
-            || !PyFunction_Check(s_python_function_xlim)
-            || !PyFunction_Check(s_python_function_ion)
-            || !PyFunction_Check(s_python_function_ginput)
-            || !PyFunction_Check(s_python_function_save)
-            || !PyFunction_Check(s_python_function_clf)
-            || !PyFunction_Check(s_python_function_tight_layout)
-            || !PyFunction_Check(s_python_function_errorbar)
-            || !PyFunction_Check(s_python_function_stem)
-            || !PyFunction_Check(s_python_function_xkcd)
-            || !PyFunction_Check(s_python_function_text)
-            || !PyFunction_Check(s_python_function_suptitle)
-            || !PyFunction_Check(s_python_function_subplots_adjust)
-            || !PyFunction_Check(s_python_function_axvline)
+        if (!PyFunction_Check(s_python_function_show) ||
+            !PyFunction_Check(s_python_function_close) ||
+            !PyFunction_Check(s_python_function_draw) ||
+            !PyFunction_Check(s_python_function_pause) ||
+            !PyFunction_Check(s_python_function_figure) ||
+            !PyFunction_Check(s_python_function_plot) ||
+            !PyFunction_Check(s_python_function_quiver) ||
+            !PyFunction_Check(s_python_function_semilogx) ||
+            !PyFunction_Check(s_python_function_semilogy) ||
+            !PyFunction_Check(s_python_function_loglog) ||
+            !PyFunction_Check(s_python_function_fill_between) ||
+            !PyFunction_Check(s_python_function_subplot) ||
+            !PyFunction_Check(s_python_function_legend) ||
+            !PyFunction_Check(s_python_function_annotate) ||
+            !PyFunction_Check(s_python_function_ylim) ||
+            !PyFunction_Check(s_python_function_yscale) ||
+            !PyFunction_Check(s_python_function_title) ||
+            !PyFunction_Check(s_python_function_axis) ||
+            !PyFunction_Check(s_python_function_xlabel) ||
+            !PyFunction_Check(s_python_function_ylabel) ||
+            !PyFunction_Check(s_python_function_grid) ||
+            !PyFunction_Check(s_python_function_xlim) ||
+            !PyFunction_Check(s_python_function_ion) ||
+            !PyFunction_Check(s_python_function_ginput) ||
+            !PyFunction_Check(s_python_function_save) ||
+            !PyFunction_Check(s_python_function_clf) ||
+            !PyFunction_Check(s_python_function_tight_layout) ||
+            !PyFunction_Check(s_python_function_errorbar) ||
+            !PyFunction_Check(s_python_function_stem) ||
+            !PyFunction_Check(s_python_function_xkcd) ||
+            !PyFunction_Check(s_python_function_text) ||
+            !PyFunction_Check(s_python_function_suptitle) ||
+            !PyFunction_Check(s_python_function_subplots_adjust) ||
+            !PyFunction_Check(s_python_function_axvline) ||
+            !PyFunction_Check(s_python_function_axhline) ||
+            !PyFunction_Check(s_python_function_gca)
 
-        ) { throw std::runtime_error("Python object is unexpectedly not a PyFunction."); }
+        ) {
+            throw std::runtime_error(
+                "Python object is unexpectedly not a PyFunction.");
+        }
 
         s_python_empty_tuple = PyTuple_New(0);
     }
@@ -1047,15 +1042,25 @@ inline void yticks(const std::vector<Numeric> &ticks, const std::map<std::string
     yticks(ticks, {}, keywords);
 }
 
-inline void subplot(long nrows, long ncols, long plot_number)
-{
+inline void subplot(long nrows, long ncols, long plot_number,
+                    bool sharex = false, bool sharey = false) {
     // construct positional args
     PyObject* args = PyTuple_New(3);
     PyTuple_SetItem(args, 0, PyFloat_FromDouble(nrows));
     PyTuple_SetItem(args, 1, PyFloat_FromDouble(ncols));
     PyTuple_SetItem(args, 2, PyFloat_FromDouble(plot_number));
 
-    PyObject* res = PyObject_CallObject(detail::_interpreter::get().s_python_function_subplot, args);
+    // construct keyword args
+    PyObject *kwargs = PyDict_New();
+    if (sharex) {
+        PyObject *args = PyTuple_New(0);
+        PyObject *gca = PyObject_CallObject(
+            detail::_interpreter::get().s_python_function_gca, args);
+        PyDict_SetItemString(kwargs, "sharex", gca);
+    }
+
+    PyObject *res = PyObject_Call(
+        detail::_interpreter::get().s_python_function_subplot, args, kwargs);
     if(!res) throw std::runtime_error("Call to subplot() failed.");
 
     Py_DECREF(args);
@@ -1116,6 +1121,30 @@ inline void axvline(double x, const std::map<std::string, std::string>& keywords
     }
 
     PyObject* res = PyObject_Call(detail::_interpreter::get().s_python_function_axvline, args, kwargs);
+    // if(!res) throw std::runtime_error("Call to axvline() failed.");
+
+    Py_DECREF(args);
+    Py_DECREF(kwargs);
+    Py_DECREF(res);
+}
+
+inline void axhline(double x,
+                    const std::map<std::string, std::string> &keywords) {
+    PyObject *x_ = PyFloat_FromDouble(x);
+    // construct positional args
+    PyObject *args = PyTuple_New(1);
+    PyTuple_SetItem(args, 0, x_);
+    // construct keyword args
+    PyObject *kwargs = PyDict_New();
+    for (std::map<std::string, std::string>::const_iterator it =
+             keywords.begin();
+         it != keywords.end(); ++it) {
+        PyDict_SetItemString(kwargs, it->first.c_str(),
+                             PyString_FromString(it->second.c_str()));
+    }
+
+    PyObject *res = PyObject_Call(
+        detail::_interpreter::get().s_python_function_axhline, args, kwargs);
     // if(!res) throw std::runtime_error("Call to axvline() failed.");
 
     Py_DECREF(args);

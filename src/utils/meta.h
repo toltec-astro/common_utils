@@ -193,8 +193,11 @@ struct nop {
     void operator()(...) const {}
 };
 
-template <typename T>
-using is_nop = std::is_same<T, nop>;
+template <typename F, typename... Args> constexpr size_t arity(F (*)(Args...)) {
+    return sizeof...(Args);
+}
+
+template <typename T> using is_nop = std::is_same<T, nop>;
 template <typename T>
 inline constexpr bool is_nop_v = is_nop<T>::value;
 

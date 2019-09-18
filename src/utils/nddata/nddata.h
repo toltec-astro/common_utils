@@ -57,6 +57,16 @@ struct CachedData : NDData<CachedData<DataType, Evaluator>> {
         : data(other.data), initialized(other.initialized) {}
     CachedData(CachedData &&other)
         : data(std::move(other.data)), initialized(other.initialized) {}
+    CachedData &operator=(const CachedData &other) {
+        data = other.data;
+        initialized = other.initialized;
+        return *this;
+    }
+    CachedData &operator=(CachedData &&other) {
+        data = std::move(other.data);
+        initialized = other.initialized;
+        return *this;
+    }
 
     template <typename T> const auto &operator()(const T &parent) const {
         static_assert(
