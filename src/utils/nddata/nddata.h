@@ -120,8 +120,17 @@ template <typename Derived> struct LabeledData : NDData<Derived> {
     auto operator()(const label_t &name) const {
         return derived().data.row(derived().row_labels.index(name));
     }
+    template <typename U = Derived, REQUIRES_V_(U::has_row_labels::value)>
+    auto operator()(const label_t &name) {
+        return derived().data.row(derived().row_labels.index(name));
+    }
+
     template <typename U = Derived, REQUIRES_V_(U::has_col_labels::value)>
     auto operator()(const label_t &name) const {
+        return derived().data.col(derived().col_labels.index(name));
+    }
+    template <typename U = Derived, REQUIRES_V_(U::has_col_labels::value)>
+    auto operator()(const label_t &name) {
         return derived().data.col(derived().col_labels.index(name));
     }
 };
