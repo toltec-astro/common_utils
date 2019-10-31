@@ -80,7 +80,7 @@ template <typename T> struct formatter<std::optional<T>> : formatter<T> {
 };
 
 template <typename T, typename U>
-struct formatter<std::pair<T, U>> : fmt_utils::null_spec_formatter_base {
+struct formatter<std::pair<T, U>> : fmt_utils::nullspec_formatter_base {
     template <typename FormatContext>
     auto format(const std::pair<T, U> &p, FormatContext &ctx)
         -> decltype(ctx.out()) {
@@ -90,7 +90,7 @@ struct formatter<std::pair<T, U>> : fmt_utils::null_spec_formatter_base {
 
 template <>
 struct formatter<std::monostate, char, void>
-    : fmt_utils::null_spec_formatter_base {
+    : fmt_utils::nullspec_formatter_base {
     template <typename FormatContext>
     auto format(const std::monostate &, FormatContext &ctx)
         -> decltype(ctx.out()) {

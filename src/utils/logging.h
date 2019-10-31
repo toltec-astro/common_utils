@@ -8,6 +8,7 @@
 #include "formatter/container.h"
 #include "meta.h"
 #include <fmt/ostream.h>
+// #include <iostream>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/spdlog.h>
 #include <sstream>
@@ -59,6 +60,13 @@ struct decorated_invoke {
 };
 
 }  // namespace
+
+inline auto init() {
+    // std::cout << fmt::format("log level at compile time: {}\n",
+    //                         SPDLOG_ACTIVE_LEVEL);
+    spdlog::set_level(
+        static_cast<spdlog::level::level_enum>(SPDLOG_ACTIVE_LEVEL));
+}
 
 inline const auto quiet = internal::decorated_invoke(
     std::tuple<>{},

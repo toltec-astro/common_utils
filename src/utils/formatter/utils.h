@@ -95,7 +95,7 @@ protected:
 };
 
 /// @brief Formatter base class that ignores the format spec.
-struct null_spec_formatter_base {
+struct nullspec_formatter_base {
     template <typename ParseContext>
     constexpr auto parse(ParseContext &ctx) -> decltype(ctx.begin()) {
         return ctx.begin();

@@ -106,6 +106,14 @@ Out create(In &&in, F &&... func) {
 }
 
 /// @brief Returns true if \p v ends with \p ending.
+template <typename T, typename U> bool startswith(const T &v, const U &prefix) {
+    if (prefix.size() > v.size()) {
+        return false;
+    }
+    return std::equal(prefix.begin(), prefix.end(), v.begin());
+}
+
+/// @brief Returns true if \p v ends with \p ending.
 template<typename T, typename U>
 bool endswith(const T &v, const U &ending) {
     if (ending.size() > v.size()) {
