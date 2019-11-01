@@ -365,7 +365,7 @@ auto fwd_capture_impl(Ts &&... xs) {
 #define VA_RSEQN() 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0
 #define VA_FUNC2(name, n) name##n
 #define VA_FUNC1(name, n) VA_FUNC2(name, n)
-#define GET_MACRO(func, ...)                                                   \
+#define GET_MACRO_NARG_OVERLOAD(func, ...)                                     \
     VA_FUNC1(func, VA_BUGFX(VA_NARG2(__VA_ARGS__)))(__VA_ARGS__)
 
 // https://stackoverflow.com/a/45043324/1824372
@@ -379,7 +379,7 @@ auto fwd_capture_impl(Ts &&... xs) {
 
 #define FWD(...) std::forward<decltype(__VA_ARGS__)>(__VA_ARGS__)
 
-#define FWD_CAPTURE(...) GET_MACRO(FWD_CAPTURE, __VA_ARGS__)
+#define FWD_CAPTURE(...) GET_MACRO_NARG_OVERLOAD(FWD_CAPTURE, __VA_ARGS__)
 #define FWD_CAPTURE1(x1) meta::internal::fwd_capture_impl(FWD(x1))
 #define FWD_CAPTURE2(x1, x2) meta::internal::fwd_capture_impl(FWD(x1), FWD(x2))
 #define FWD_CAPTURE3(x1, x2, x3)                                               \
@@ -413,7 +413,7 @@ auto fwd_capture_impl(Ts &&... xs) {
         ->decltype(o.f(FWD(xs)...)) {                                          \
         return o.f(FWD(xs)...);                                                \
     }
-#define LIFT(...) GET_MACRO(LIFT, __VA_ARGS__)
+#define LIFT(...) GET_MACRO_NARG_OVERLOAD(LIFT, __VA_ARGS__)
 
 #define define_has_member_traits(class_name, member_name)                      \
     class has_##member_name {                                                  \

@@ -61,27 +61,28 @@ REGISTER_META_ENUM(env::WinMemoryModel);
 env::~env() = default;
 
 template <typename Func>
-auto pprint_node_ranks(const mxx::comm &comm, int rank, Func &&func) {
+auto call_with_node_ranks(int rank, const mxx::comm &comm, Func &&func) {
+    using index_t = decltype(comm.size());
     char node_name[MPI_MAX_PROCESSOR_NAME];
     int node_len;
     MPI_Get_processor_name(node_name, &node_len);
-    // gather all processor names to master
+    // gather all processor names to rank
     std::vector<char> node_names_raw =
         mxx::gatherv(node_name, SIZET(MPI_MAX_PROCESSOR_NAME), rank, comm);
     if (rank == comm.rank()) {
         std::vector<std::string> node_names;
-        for (std::size_t i = 0; i < SIZET(comm.size()); ++i) {
+
+        for (index_t i = 0; i < comm.size(); ++i) {
             node_names.emplace_back(node_names_raw.data() +
                                         i * MPI_MAX_PROCESSOR_NAME,
                                     MPI_MAX_PROCESSOR_NAME);
         }
         // SPDLOG_TRACE("node names: {}", node_names);
-        std::unordered_map<std::string, std::vector<std::size_t>> node_ranks_;
-        for (std::size_t i = 0; i < SIZET(comm.size()); ++i) {
-            node_ranks_[node_names[i]].push_back(i);
+        std::unordered_map<std::string, std::vector<index_t>> node_ranks_;
+        for (index_t i = 0; i < comm.size(); ++i) {
+            node_ranks_[node_names[SIZET(i)]].push_back(i);
         }
-        std::vector<std::pair<std::string, std::vector<std::size_t>>>
-            node_ranks;
+        std::vector<std::pair<std::string, std::vector<index_t>>> node_ranks;
         for (auto &[node, ranks] : node_ranks_) {
             std::sort(ranks.begin(), ranks.end());
             node_ranks.emplace_back(node, ranks);
@@ -91,18 +92,97 @@ auto pprint_node_ranks(const mxx::comm &comm, int rank, Func &&func) {
                   [](const auto &lhs, const auto &rhs) {
                       return lhs.second.front() < rhs.second.front();
                   });
-
-        std::stringstream ss;
-        ss << fmt::format("MPI comm layout:"
-                          "\n  n_procs: {}\n  n_nodes: {}",
-                          comm.size(), node_ranks.size());
-        for (std::size_t i = 0; i < node_ranks.size(); ++i) {
-            auto &[node, ranks] = node_ranks[i];
-            ss << fmt::format("\n  {}: {}\n      ranks: {}", i, node, ranks);
-        }
-        FWD(func)(ss.str());
+        FWD(func)(std::move(node_ranks));
     }
 }
+
+template <typename Func>
+auto pprint_node_ranks(int rank, const mxx::comm &comm, Func &&func) {
+    call_with_node_ranks(
+        rank, comm, [&comm, func = FWD(func)](auto &&node_ranks) {
+            std::stringstream ss;
+            ss << fmt::format("MPI comm layout:"
+                              "\n  n_procs: {}\n  n_nodes: {}",
+                              comm.size(), node_ranks.size());
+            for (std::size_t i = 0; i < node_ranks.size(); ++i) {
+                auto &[node, ranks] = node_ranks[i];
+                ss << fmt::format("\n  {}: {}\n      ranks: {}", i, node,
+                                  ranks);
+            }
+            func(ss.str());
+        });
+}
+
+struct comm : mxx::comm {
+    template <typename... Args>
+    comm(Args &&... args) : mxx::comm{FWD(args)...} {
+        // initialize node info
+        constexpr auto master_rank = 0;
+        constexpr auto tag = 0;
+        call_with_node_ranks(master_rank, *this, [this](auto &&node_ranks) {
+            this->m_n_nodes = node_ranks.size();
+            for (std::size_t i = 0; i < node_ranks.size(); ++i) {
+                auto &[node, ranks] = node_ranks[i];
+                for (auto r : ranks) {
+                    auto m_node_index = meta::size_cast<index_t>(i);
+                    auto m_node_name = node;
+                    auto m_node_name_size =
+                        meta::size_cast<int>(m_node_name.size());
+                    if (r == master_rank) {
+                        this->m_node_index = m_node_index;
+                        this->m_node_name = m_node_name;
+                    } else {
+                        // send to other processes
+                        MPI_Send(&m_node_index, 1, MPI_INT, r, tag, *this);
+                        MPI_Send(&m_node_name_size, 1, MPI_INT, r, tag, *this);
+                        MPI_Send(const_cast<char *>(m_node_name.data()),
+                                 m_node_name_size, MPI_CHAR, r, tag, *this);
+                    }
+                }
+            }
+        });
+        MPI_Bcast(&this->m_n_nodes, 1, MPI_INT, master_rank, *this);
+        if (rank() != master_rank) {
+            MPI_Recv(&this->m_node_index, 1, MPI_INT, master_rank, tag, *this,
+                     MPI_STATUS_IGNORE);
+            int m_node_name_size{0};
+            MPI_Recv(&m_node_name_size, 1, MPI_INT, master_rank, tag, *this,
+                     MPI_STATUS_IGNORE);
+            this->m_node_name.resize(SIZET(m_node_name_size));
+            MPI_Recv(const_cast<char *>(this->m_node_name.data()),
+                     m_node_name_size, MPI_CHAR, master_rank, tag, *this,
+                     MPI_STATUS_IGNORE);
+        }
+        assert(n_nodes() > 0);
+        assert(node_index() >= 0);
+    }
+    using index_t = int;
+    // getters
+    constexpr index_t n_nodes() const { return m_n_nodes; }
+    constexpr index_t node_index() const { return m_node_index; }
+    constexpr const std::string &node_name() const { return m_node_name; }
+    // node info
+    index_t m_n_nodes{-1};
+    index_t m_node_index{-1};
+    std::string m_node_name{""};
+
+    template <typename Func, typename... Args>
+    auto bcast_str(index_t from_rank, Func &&func, Args &&... args) const {
+        std::string str{};
+        int size{0};
+        if (rank() == from_rank) {
+            str = FWD(func)(FWD(args)...);
+            size = meta::size_cast<int>(str.size());
+        }
+        MPI_Bcast(&size, 1, MPI_INT, from_rank, *this);
+        if (rank() != from_rank) {
+            str.resize(SIZET(size));
+        }
+        MPI_Bcast(const_cast<char *>(str.data()), size, MPI_CHAR, from_rank,
+                  *this);
+        return str;
+    }
+};
 
 /**
  * @brief The Span struct
