@@ -188,18 +188,22 @@ struct comm : mxx::comm {
  * @brief The Span struct
  * This provides contexts to a continuous block of memory.
  */
-template <typename T> struct Span {
-    using index_t = MPI_Aint;
+template <typename T, typename Index> struct Span {
     using data_t = T;
-    using disp_unit_t = int;
+    using index_t = Index;
+    using disp_unit_t = int; // set by MPI API
     static constexpr disp_unit_t disp_unit{sizeof(data_t)};
+    using vec_t = Eigen::Map<Eigen::Matrix<data_t, Eigen::Dynamic, 1>>;
+    using mat_t =
+        Eigen::Map<Eigen::Matrix<data_t, Eigen::Dynamic, Eigen::Dynamic>>;
     Span(data_t *data_, index_t size_) : data(data_), size(size_) {}
     data_t *data{nullptr};
     index_t size{0};
 
-    auto asvec() {
-        using PlainObject = Eigen::Matrix<data_t, Eigen::Dynamic, 1>;
-        return Eigen::Map<PlainObject>(data, size);
+    auto asvec() { return vec_t(data, size); }
+    auto asmat(index_t nrows, index_t ncols) {
+        assert(nrows * ncols <= size);
+        return mat_t(data, nrows, ncols);
     }
 
     /**
@@ -209,23 +213,27 @@ template <typename T> struct Span {
      * @param comm The MPI comm across which the memory is shared
      * @param p_win The RMA context.
      */
-    template <typename size_t>
-    static auto allocate_shared(int rank, size_t size, const mxx::comm &comm,
-                                MPI_Win *p_win) {
-        Span arr(nullptr, meta::size_cast<Span::index_t>(size));
+    static auto allocate_shared(int master_rank, index_t size,
+                                const mxx::comm &comm, MPI_Win *p_win) {
+        // here the MPI APIs works with size of type MPI_Aint, so we
+        // need to be careful about overflow issue for large array
+        Span arr(nullptr, size);
+        auto mem_size = meta::size_cast<MPI_Aint>(arr.size * disp_unit);
         // allocate
-        MPI_Win_allocate_shared(comm.rank() == rank ? arr.size : 0,
+        MPI_Win_allocate_shared(comm.rank() == master_rank ? mem_size : 0,
                                 arr.disp_unit, MPI_INFO_NULL, comm, &arr.data,
                                 p_win);
-        if (comm.rank() == rank) {
+        if (comm.rank() == master_rank) {
             SPDLOG_TRACE("shared memory allocated {}", arr);
         } else {
             // update the pointer to point to the shared memory on the
             // creation rank
-            Span::index_t _size;
+            MPI_Aint _mem_size;
             Span::disp_unit_t _disp_unit;
-            MPI_Win_shared_query(*p_win, rank, &_size, &_disp_unit, &arr.data);
-            assert(_size == arr.size);
+            MPI_Win_shared_query(*p_win, master_rank, &_mem_size, &_disp_unit,
+                                 &arr.data);
+            // update size
+            arr.size = meta::size_cast<Span::index_t>(_mem_size) / disp_unit;
             assert(_disp_unit == arr.disp_unit);
             SPDLOG_TRACE("shared memroy connected from rank={} {}", comm.rank(),
                          arr);
@@ -233,6 +241,11 @@ template <typename T> struct Span {
         return arr;
     }
 };
+
+#define MPI_UTILS_DECLTYPE(v)                                                  \
+    mxx::get_datatype<std::decay_t<decltype(v)>>().type()
+#define MPI_UTILS_GETTYPE(T) mxx::get_datatype<T>().type()
+
 } // namespace mpi_utils
 
 namespace fmt {
@@ -250,11 +263,11 @@ struct formatter<mpi_utils::env, char> : fmt_utils::nullspec_formatter_base {
     }
 };
 
-template <typename T>
-struct formatter<mpi_utils::Span<T>, char>
+template <typename... Ts>
+struct formatter<mpi_utils::Span<Ts...>, char>
     : fmt_utils::nullspec_formatter_base {
     template <typename FormatContext>
-    auto format(const mpi_utils::Span<T> &arr, FormatContext &ctx)
+    auto format(const mpi_utils::Span<Ts...> &arr, FormatContext &ctx)
         -> decltype(ctx.out()) {
         return format_to(ctx.out(), "@{:z} size={} disp_unit={}",
                          fmt_utils::ptr(arr.data), arr.size, arr.disp_unit);
