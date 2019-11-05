@@ -205,6 +205,10 @@ template <typename T, typename Index> struct Span {
         assert(nrows * ncols <= size);
         return mat_t(data, nrows, ncols);
     }
+    template <typename shape_t> auto asmat(const shape_t &shape) {
+        assert(shape.size() == 2);
+        return asmat(shape[0], shape[1]);
+    }
 
     /**
      * @brief Create span as MPI shared memory.
