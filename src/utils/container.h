@@ -1,8 +1,9 @@
 #pragma once
+#include "eigen.h"
+#include "eigeniter.h"
 #include "logging.h"
 #include "meta.h"
-#include "eigeniter.h"
-#include "eigen.h"
+#include <regex>
 
 namespace container_utils {
 
@@ -183,12 +184,76 @@ auto index(const T& v) {
     return index(v.size());
 }
 
+template <typename T>
+using Slice = std::tuple<std::optional<T>, std::optional<T>, std::optional<T>>;
+using IndexSlice = Slice<Eigen::Index>;
+
 /// @brief Parse python-like slice string.
-template <typename T> auto parse_slice(const std::string &) {
-    std::optional<T> start{};
-    std::optional<T> end{};
-    std::optional<T> step{};
-    return std::make_tuple(std::move(start), std::move(end), std::move(step));
+template <typename T = Eigen::Index>
+auto parse_slice(const std::string &slice_str) {
+    Slice<T> result;
+    auto &[start, stop, step] = result;
+    std::string value_pattern;
+    if constexpr (std::is_integral_v<T>) {
+        value_pattern = "[-+]?[0-9]+";
+    } else {
+        value_pattern = "[-+]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?";
+    }
+    std::string pattern = fmt::format("^({})?(:)?({})?:?({})?$", value_pattern,
+                                      value_pattern, value_pattern);
+    std::regex re_slice{pattern};
+    SPDLOG_TRACE("checking slice str {} with {}", slice_str, pattern);
+    std::smatch match;
+    T var;
+    if (std::regex_match(slice_str, match, re_slice)) {
+        if (match[1].matched) {
+            std::istringstream iss;
+            iss.str(match[1].str());
+            iss >> var;
+            start = var;
+        }
+        if (match[3].matched) {
+            std::istringstream iss;
+            iss.str(match[3].str());
+            iss >> var;
+            stop = var;
+        }
+        if (match[4].matched) {
+            std::istringstream iss;
+            iss.str(match[4].str());
+            iss >> var;
+            step = var;
+        }
+    }
+    SPDLOG_TRACE("parsed slice {}", result);
+    return result;
+}
+
+//                                              start stop step len
+template <typename T> using BoundedSlice = std::tuple<T, T, T, T>;
+
+/// @brief Convert slice to indices
+template <typename T, typename N,
+          REQUIRES_V(std::is_integral_v<T> &&std::is_integral_v<N>)>
+auto to_indices(Slice<T> slice, N n) {
+    BoundedSlice<T> result{
+        std::get<0>(slice).value_or(0),
+        std::get<1>(slice).value_or(n),
+        std::get<2>(slice).value_or(1),
+        0,
+    };
+    auto &[start, stop, step, size] = result;
+    if (start < 0) {
+        start += n;
+    }
+    if (stop < 0) {
+        start += n;
+    }
+    if (stop >= n) {
+        stop = n;
+    }
+    size = (stop - start) / step + (((stop - start) % step) ? 1 : 0);
+    return result;
 }
 
 // std::vector<T>&& src - src MUST be an rvalue reference
@@ -204,3 +269,32 @@ inline void append(std::vector<T> source, std::vector<T> &destination) {
 }
 
 } // namespace container_utils
+
+namespace fmt {
+
+template <typename T, typename Char>
+struct formatter<container_utils::Slice<T>, Char>
+    : fmt_utils::nullspec_formatter_base {
+
+    template <typename FormatContext>
+    auto format(const container_utils::Slice<T> &slice, FormatContext &ctx) {
+        auto it = ctx.out();
+        const auto &[start, stop, step] = slice;
+        return format_to(it, "[{}:{}:{}]", start, stop, step);
+    }
+};
+
+template <typename T, typename Char>
+struct formatter<container_utils::BoundedSlice<T>, Char>
+    : fmt_utils::nullspec_formatter_base {
+
+    template <typename FormatContext>
+    auto format(const container_utils::BoundedSlice<T> &slice,
+                FormatContext &ctx) {
+        auto it = ctx.out();
+        const auto &[start, stop, step, size] = slice;
+        return format_to(it, "[{}:{}:{}]({})", start, stop, step, size);
+    }
+};
+
+} // namespace fmt
