@@ -215,6 +215,9 @@ public:
 
     auto write(double perc) { func(barstr(perc)); }
     template <typename N1, typename N2> auto count(N1 total, N2 stride) {
+        if (stride < 1) {
+            stride = 1;
+        }
         ++counter;
         if (counter % stride == 0) {
             write(double(counter) / total);
