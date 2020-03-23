@@ -307,6 +307,11 @@ struct pprint {
         for (const auto &var : fo.getVars()) {
             os << "\n" << pprint::format_ncvar(var.second, max_key_width);
         }
+        os << "\n"
+           << "dims:";
+        for (const auto &dim : fo.getDims()) {
+            os << "\n    " << pprint::format_ncdim(dim.second);
+        }
         return os.str();
     }
 
