@@ -1,10 +1,13 @@
 #pragma once
 
-#include "logging.h"
+#include "ecsv.h"
 #include "enum/meta_enum.h"
+#include "logging.h"
 #include <Eigen/Core>
 #include <fstream>
 #include <iomanip>
+#include <regex>
+#include <yaml-cpp/yaml.h>
 
 namespace datatable {
 
@@ -24,14 +27,16 @@ struct DumpError : public std::runtime_error {
 /**
  * @enum Format
  * @brief The format of data table.
- * @var Ascii
+ * @var ecsv
+ *  Astropy ECSV file.
+ * @var ascii
  *  Delim-separated Ascii table.
- * @var Memdump
+ * @var memdump
  *  Raw C-style array memory dump.
  */
 enum class Format : int { Ascii, Memdump };
 #else
-META_ENUM(Format, int, Ascii, Memdump);
+META_ENUM(Format, int, ecsv, ascii, memdump);
 #endif
 
 /**
@@ -51,7 +56,8 @@ template <Format format> struct IO {
 /**
  * @brief Ascii table IO.
  */
-template <> struct IO<Format::Ascii> {
+template <> struct IO<Format::ascii> {
+
     /**
      * @brief Dump as ascii table.
      * @param os_ Output stream to dump the data to
@@ -65,18 +71,18 @@ template <> struct IO<Format::Ascii> {
     static decltype(auto)
     dump(OStream &os_, const Eigen::EigenBase<Derived> &data,
          const std::vector<std::string> &colnames = {},
-         const std::vector<int> &usecols = {}, char delim = ' ') {
-	using Scalar  =    typename Derived::Scalar;
+         const std::vector<int> &usecols = {}, char delim = ' ',
+         std::optional<char> comment = '#') {
+        using Scalar = typename Derived::Scalar;
         std::stringstream os;
         os << std::setprecision(std::numeric_limits<Scalar>::digits10 + 1);
         char newline = '\n';
-        char comment = '#';
         auto nrows = data.rows();
         auto ncols = data.cols();
         auto ncols_use = ncols;
-        SPDLOG_TRACE(
-            "dump as ascii, nrows={}, ncols={}, usecols={} delim=\"{}\"", nrows,
-            ncols, usecols, delim);
+        SPDLOG_TRACE("dump as ascii, nrows={}, ncols={}, usecols={} "
+                     "delim=\"{}\" comment=\"{}\"",
+                     nrows, ncols, usecols, delim);
         // get the usecols
         if (!usecols.empty()) {
             for (auto i : usecols) {
@@ -88,6 +94,7 @@ template <> struct IO<Format::Ascii> {
             ncols_use = usecols.size();
             SPDLOG_TRACE("using {} cols out of {}", ncols_use, ncols);
         }
+        std::string row_prefix{comment.has_value() ? " " : ""};
         // write header
         if (!colnames.empty()) {
             if (colnames.size() != ncols_use) {
@@ -95,9 +102,16 @@ template <> struct IO<Format::Ascii> {
                     "number of colnames {} does not match number of columns {}",
                     colnames.size(), ncols_use));
             }
-            os << comment;
-            for (const auto &name : colnames) {
-                os << delim << name;
+            if (comment.has_value()) {
+                os << comment.value() << " ";
+            }
+            for (std::size_t j = 0; j < colnames.size(); ++j) {
+                if (j == 0) {
+                    os << row_prefix;
+                } else {
+                    os << delim;
+                }
+                os << colnames[j];
             }
             os << newline;
         }
@@ -105,7 +119,12 @@ template <> struct IO<Format::Ascii> {
         for (Index i = 0; i < nrows; ++i) {
             if (usecols.empty()) {
                 for (std::size_t j = 0; j < ncols; ++j) {
-                    os << delim << data.derived().coeff(i, j);
+                    if (j == 0) {
+                        os << row_prefix;
+                    } else {
+                        os << delim;
+                    }
+                    os << data.derived().coeff(i, j);
                 }
             } else {
                 for (std::size_t j = 0; j < usecols.size(); ++j) {
@@ -113,7 +132,12 @@ template <> struct IO<Format::Ascii> {
                     if (v < 0) {
                         v += ncols;
                     }
-                    os << delim << data.derived().coeff(i, v);
+                    if (j == 0) {
+                        os << row_prefix;
+                    } else {
+                        os << delim;
+                    }
+                    os << data.derived().coeff(i, v);
                 }
             }
             os << newline;
@@ -238,9 +262,187 @@ template <> struct IO<Format::Ascii> {
 };
 
 /**
+ * @brief ECSV table IO.
+ */
+template <> struct IO<Format::ecsv> {
+    /**
+     * @brief Dump as EVSV table.
+     * @param os_ Output stream to dump the data to
+     * @param data The data to be dumped
+     * @param colnames The column names to use.
+     * @param usecols The indexes of columns to include in the output.
+     *  Python-style negative indexes are supported.
+     */
+    template <typename OStream, typename Derived>
+    static decltype(auto)
+    dump(OStream &os_, const Eigen::EigenBase<Derived> &data,
+         const std::vector<std::string> &colnames = {},
+         const std::vector<int> &usecols = {}, YAML::Node meta = {}) {
+        std::stringstream os;
+        using Scalar = typename Derived::Scalar;
+        /*
+        re2::RE2 re_ecsv_header_prefix("(?m)^");
+        auto write_ecsv_header_content = [&](auto &os, auto &&content) {
+            // search and replace all newline with the header prefix
+            std::string s(FWD(content));
+            re2::RE2::GlobalReplace(&s, re_ecsv_header_prefix,
+                                    ecsv::spec::ECSV_HEADER_PREFIX);
+            os << s << "\n";
+        };
+        // create yaml header
+        auto dtype = ecsv::dtype_str<Scalar>;
+
+        YAML::Node header;
+        header.SetStyle(YAML::EmitterStyle::Block);
+        for (const auto &c : colnames) {
+            YAML::Node n;
+            n.SetStyle(YAML::EmitterStyle::Flow);
+            n["name"] = c;
+            n["datatype"] = dtype;
+            header["datatype"].push_back(n);
+        }
+        if (!meta.IsNull()) {
+            header["meta"] = std::move(meta);
+        }
+        YAML::Emitter ye;
+        ye << header;
+        SPDLOG_INFO("ecsv header: {}", ye.c_str());
+        write_ecsv_header_content(os,
+                                  fmt::format("%ECSV {}\n---\n{}",
+                                              ecsv::spec::ECSV_VERSION,
+                                              ye.c_str()));
+        */
+        // dump header
+        ecsv::dump_header(os, colnames, std::tuple<Scalar>{}, std::move(meta));
+        // write data
+        IO<Format::ascii>::dump(os, data, colnames, usecols,
+                                ecsv::spec::ECSV_DELIM_CHAR, std::nullopt);
+        os_ << os.str();
+        return os_;
+    }
+
+    /**
+     * @brief Parse as ECSV table.
+     * @param is Input stream to be parsed.
+     * @param colnames Vector to capture column names.
+     * @param meta YAML node to capture meta data.
+     * @param usecols The indexes of columns to include in the result.
+     *  Python-style negative indexes are supported.
+     */
+    template <typename Scalar, typename IStream>
+    static decltype(auto)
+    parse(IStream &is, std::vector<std::string> *colnames = nullptr,
+          YAML::Node *meta = nullptr, const std::vector<int> &usecols = {}) {
+        SPDLOG_TRACE("parse as ECSV, usecols={}", usecols);
+        // is.exceptions(std::ios_base::failbit | std::ios_base::badbit);
+        std::vector<std::string> lines_read;
+        // this will read the in stream and parse it until the end of the header
+        // block
+        const auto &[colnames_, meta_] = [&]() {
+            try {
+                auto [colnames_, dtypes, meta_] =
+                    ecsv::parse_header(is, &lines_read);
+                // parse the data section
+                if (!ecsv::check_uniform_dtype<Scalar>(dtypes)) {
+                    throw ParseError(fmt::format(
+                        "the current implementation does not support "
+                        "non-uniform datatype in header {dtypes}",
+                        dtypes));
+                }
+                SPDLOG_TRACE("parsed ecsv header: colnames{} dtypes{} meta{}",
+                             colnames_, dtypes, meta_);
+                return std::tuple{std::move(colnames_), std::move(meta_)};
+            } catch (ecsv::ParseError) {
+                throw ParseError(fmt::format(
+                    "unable to parse as ECSV lines: {}", lines_read));
+            }
+        }();
+        // proceed with data of type Scalar
+        std::string line;
+        std::string strnum; // hold the number
+        std::vector<std::vector<Scalar>> data;
+        while (std::getline(is, line)) {
+            std::vector<Scalar> buf_data;
+            for (auto it = line.begin(); it != line.end(); ++it) {
+                if (!isascii(*it)) {
+                    throw ParseError("not an ASCII file");
+                }
+                // If i is not a delim, then append it to strnum
+                if (ecsv::spec::ECSV_DELIM_CHAR != *it) {
+                    strnum += *it;
+                    // continue to next char unless this is the last one
+                    if (it + 1 != line.end())
+                        continue;
+                }
+                // if strnum is still empty, it means the previous char is also
+                // a delim (several delims appear together). Ignore this char.
+                if (strnum.empty()) {
+                    continue;
+                }
+                // If we reach here, we got something.
+                // try convert it to number.
+                std::istringstream ss(strnum);
+                Scalar number;
+                ss >> number;
+                if (ss.fail()) {
+                    // not a number, treat as header
+                    throw ParseError("wrong data type found in data.");
+                }
+                buf_data.push_back(number);
+                strnum.clear();
+            }
+            data.emplace_back(buf_data);
+        }
+        if (colnames != nullptr) {
+            *colnames = colnames_;
+        }
+        if (meta != nullptr) {
+            *meta = meta_;
+        }
+        // convert to Eigen matrix
+        auto nrows = static_cast<Index>(data.size());
+        auto ncols = static_cast<Index>(data[0].size());
+        auto ncols_use = ncols;
+        SPDLOG_TRACE("shape of table ({}, {})", nrows, ncols);
+        // get the usecols
+        if (!usecols.empty()) {
+            for (auto i : usecols) {
+                if ((i < -ncols) || (i >= ncols))
+                    throw ParseError(fmt::format(
+                        "invalid column index {} for table of ncols={}", i,
+                        ncols));
+            }
+            ncols_use = meta::size_cast<Index>(usecols.size());
+            SPDLOG_TRACE("using {} cols out of {}", ncols_use, ncols);
+        }
+        using Eigen::Dynamic;
+        using Eigen::Map;
+        using Eigen::Matrix;
+        Matrix<Scalar, Dynamic, Dynamic> ret(nrows, ncols_use);
+        for (Index i = 0; i < nrows; ++i) {
+            if (usecols.empty()) {
+                ret.row(i) =
+                    Map<Matrix<Scalar, Dynamic, 1>>(&data[i][0], ncols_use);
+            } else {
+                for (std::size_t j = 0; j < usecols.size(); ++j) {
+                    auto v = usecols[j];
+                    if (v < 0)
+                        v += ncols;
+                    // SPDLOG_TRACE("get table data {} {} to return {} {}", i,
+                    // v, i, j);
+                    ret(i, j) = data[i][v];
+                }
+            }
+            data[i].clear();
+        }
+        return ret;
+    };
+}; // namespace datatable
+
+/**
  * @brief C-style array memory dump IO.
  */
-template <> struct IO<Format::Memdump> {
+template <> struct IO<Format::memdump> {
 
     /**
      * @brief Prase as C-style array memory dump.
