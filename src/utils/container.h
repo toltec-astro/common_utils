@@ -193,11 +193,20 @@ template <typename T = Eigen::Index>
 auto parse_slice(const std::string &slice_str) {
     Slice<T> result;
     auto &[start, stop, step] = result;
+    std::size_t istart{0};
+    std::size_t istop{0};
+    std::size_t istep{0};
     std::string value_pattern;
     if constexpr (std::is_integral_v<T>) {
         value_pattern = "[-+]?[0-9]+";
+        istart = 1;
+        istop = 3;
+        istep = 4;
     } else {
         value_pattern = "[-+]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?";
+        istart = 1;
+        istop = 4;
+        istep = 6;
     }
     std::string pattern = fmt::format("^({})?(:)?({})?:?({})?$", value_pattern,
                                       value_pattern, value_pattern);
@@ -206,21 +215,21 @@ auto parse_slice(const std::string &slice_str) {
     std::smatch match;
     T var;
     if (std::regex_match(slice_str, match, re_slice)) {
-        if (match[1].matched) {
+        if (match[istart].matched) {
             std::istringstream iss;
-            iss.str(match[1].str());
+            iss.str(match[istart].str());
             iss >> var;
             start = var;
         }
-        if (match[3].matched) {
+        if (match[istop].matched) {
             std::istringstream iss;
-            iss.str(match[3].str());
+            iss.str(match[istop].str());
             iss >> var;
             stop = var;
         }
-        if (match[4].matched) {
+        if (match[istep].matched) {
             std::istringstream iss;
-            iss.str(match[4].str());
+            iss.str(match[istep].str());
             iss >> var;
             step = var;
         }
