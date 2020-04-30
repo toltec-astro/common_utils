@@ -258,7 +258,7 @@ auto fit(const Eigen::DenseBase<DerivedA> &xdata_,
     SPDLOG_TRACE("{}", summary.BriefReport());
     SPDLOG_TRACE("fitted paramblock {}",
                  fmt_utils::pprint(paramblock, Fitter_::NP));
-    SPDLOG_DEBUG("fitted params {}", params.derived());
+    SPDLOG_TRACE("fitted params {}", params.derived());
     return std::make_tuple(summary.termination_type == ceres::CONVERGENCE, std::move(summary));
 }
 
