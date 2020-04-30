@@ -349,7 +349,8 @@ template <> struct IO<Format::ecsv> {
                         "non-uniform datatype in header {dtypes}",
                         dtypes));
                 }
-                SPDLOG_TRACE("parsed ecsv header: colnames{} dtypes{} meta{}",
+                SPDLOG_TRACE("parsed ecsv "
+                             "header:\ncolnames:\n{}\ndtypes:\n{}\nmeta:\n{}",
                              colnames_, dtypes, meta_);
                 return std::tuple{std::move(colnames_), std::move(meta_)};
             } catch (ecsv::ParseError) {
