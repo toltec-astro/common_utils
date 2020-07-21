@@ -17,9 +17,9 @@ inline std::string parse_pattern(const std::string &pattern,
     }
     fs::path p(filename);
     std::string stem(p.stem().string());
-    SPDLOG_TRACE("filename components: {stem}", fmt::arg("stem", stem));
-    auto parsed =
-        fmt::format(pattern, fmt::arg("stem", stem), FWD(args)...);
+    SPDLOG_TRACE(
+        fmt::format("filename components: {stem}", fmt::arg("stem", stem)));
+    auto parsed = fmt::format(pattern, fmt::arg("stem", stem), FWD(args)...);
     return fs::absolute(parsed).string();
 }
 
