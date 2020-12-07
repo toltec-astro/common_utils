@@ -5,11 +5,15 @@
 
 namespace alg {
 
-auto shape = [](const auto &m) { return std::make_pair(m.rows(), m.cols()); };
+inline auto shape = [](const auto &m) {
+    return std::make_pair(m.rows(), m.cols());
+};
 
-auto span = [](const auto &v) { return v.coeff(v.size() - 1) - v.coeff(0); };
+inline auto span = [](const auto &v) {
+    return v.coeff(v.size() - 1) - v.coeff(0);
+};
 
-auto step = [](const auto &v, Eigen::Index i = 0) {
+inline auto step = [](const auto &v, Eigen::Index i = 0) {
     return v.coeff(i + 1) - v.coeff(i);
 };
 
