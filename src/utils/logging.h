@@ -8,7 +8,7 @@
 #include "formatter/container.h"
 #include "meta.h"
 #include <fmt/ostream.h>
-// #include <iostream>
+#include <iostream>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/spdlog.h>
 #include <sstream>
@@ -61,11 +61,26 @@ struct decorated_invoke {
 
 }  // namespace
 
-inline auto init() {
-    // std::cout << fmt::format("log level at compile time: {}\n",
-    //                         SPDLOG_ACTIVE_LEVEL);
-    spdlog::set_level(
-        static_cast<spdlog::level::level_enum>(SPDLOG_ACTIVE_LEVEL));
+constexpr auto active_level =
+    static_cast<spdlog::level::level_enum>(SPDLOG_ACTIVE_LEVEL);
+
+static auto active_level_str =
+    std::string_view{spdlog::level::to_string_view(active_level).data()};
+
+static auto level_names = std::vector<std::string>{SPDLOG_LEVEL_NAMES};
+
+template <spdlog::level::level_enum level = active_level>
+void init(bool verbose = false) {
+    if (verbose) {
+        auto msg = fmt::format(
+            "** logging ** configured with level={} ({} at compile time)\n",
+            spdlog::level::to_string_view(level), active_level_str);
+        std::cout << msg;
+    }
+    spdlog::set_level(level);
+    // spdlog::set_error_handler([](const std::string& msg) {
+    //     throw std::runtime_error(msg);
+    // });
 }
 
 inline const auto quiet = internal::decorated_invoke(
