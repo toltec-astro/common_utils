@@ -10,6 +10,7 @@ namespace config {
  * This is a thin wrapper around YAML::Node.
  */
 struct YamlConfig {
+
     using value_t = YAML::Node;
     using storage_t = YAML::Node;
     YamlConfig() = default;
@@ -24,11 +25,11 @@ struct YamlConfig {
     }
 
     template <typename T, typename KT> auto get_typed(KT &&key) const {
-        return multiget_node(FWD(key)).template as<T>();
+        return operator[](FWD(key)).template as<T>();
     }
     template <typename T, typename KT>
     auto get_typed(KT &&key, T &&defval) const {
-        decltype(auto) node = m_node[key];
+        decltype(auto) node = multiget_node(FWD(key));
         if (node.IsDefined() && !node.IsNull()) {
             return node.template as<T>();
         }
@@ -44,7 +45,7 @@ struct YamlConfig {
     }
 
     template <typename KT> decltype(auto) operator[](KT &&key) const {
-        return m_node[FWD(key)];
+        return multiget_node(FWD(key));
     }
 
     bool has(const key_t &key) const { return m_node[key].IsDefined(); }
@@ -77,6 +78,11 @@ private:
         if constexpr (meta::is_instance<KT, std::tuple>::value) {
             return std::apply(multiget_node_impl,
                               std::tuple_cat(std::tuple{m_node}, FWD(key)));
+        } else if (meta::is_instance<KT, std::initializer_list>::value) {
+            return std::apply(
+                multiget_node_impl,
+                std::tuple_cat(std::tuple{m_node},
+                               meta::list_to_tuple_t<KT>{FWD(key)}));
         } else {
             return std::apply(multiget_node_impl, std::tuple{m_node, FWD(key)});
         }

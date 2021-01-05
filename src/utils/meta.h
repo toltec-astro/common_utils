@@ -313,11 +313,29 @@ constexpr auto t2a(tuple_t &&tuple) {
     return std::apply(get_array, std::forward<tuple_t>(tuple));
 }
 
+namespace internal {
+
+template <typename T, std::size_t n> using n2t = T;
+
+template <typename T, std::size_t... Is>
+auto i2t_impl(std::index_sequence<Is...>) {
+    return std::tuple<n2t<T, Is>...>{};
+}
+
+template <typename T, std::size_t N> auto i2t() {
+    return i2t_impl<T>(std::make_index_sequence<N>{});
+}
+} // namespace internal
+
+template <typename list_t>
+using list_to_tuple_t =
+    decltype(internal::i2t_impl<list_t::value_type, list_t::size()>(list_t{}));
+
 template <class T>
-struct is_c_str
-    : std::integral_constant<
-          bool, std::is_same_v<char const *, typename std::decay_t<T>> ||
-                    std::is_same_v<char *, typename std::decay_t<T>>> {};
+struct is_c_str : std::integral_constant<
+                      bool,
+                      std::is_same_v<char const *, typename std::decay_t<T>> ||
+                          std::is_same_v<char *, typename std::decay_t<T>>> {};
 
 template <typename T, typename = void>
 struct has_push_back : std::false_type {};
