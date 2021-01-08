@@ -193,4 +193,61 @@ private:
     storage_t m_config{};
 };
 
+/// @brief The mixin class stores and validates config
+template <typename Derived, typename Config> struct ConfigValidatorMixin {
+    using config_t = Config;
+
+private:
+    config_t m_config{};
+    struct derived_has_check_config {
+        define_has_member_traits(Derived, check_config);
+        constexpr static auto value = has_check_config::value;
+    };
+
+public:
+    ConfigValidatorMixin() = default;
+    template <typename... Args> ConfigValidatorMixin(Args &&...args) {
+        set_config(FWD(args)...);
+    }
+    const config_t &config() const { return m_config; }
+    void set_config(config_t config, bool check = true) {
+        if (check) {
+            SPDLOG_TRACE("set config check ...");
+            if constexpr (derived_has_check_config::value) {
+                if (auto opt_errors = Derived::check_config(config);
+                    opt_errors.has_value()) {
+                    throw std::runtime_error(
+                        fmt::format("invalid config:\n{}\nerrors: {}", config,
+                                    opt_errors.value()));
+                }
+                SPDLOG_TRACE("set config check passed");
+            } else {
+                SPDLOG_WARN("set config check requested but no "
+                            "check_config found");
+            }
+        }
+        m_config = std::move(config);
+        SPDLOG_TRACE("m_config:\n{}", m_config.pformat());
+    }
+    static auto from_config(config_t config, bool check = true) {
+        if (check) {
+            if constexpr (derived_has_check_config::value) {
+                if (auto opt_errors = Derived::check_config(config);
+                    opt_errors.has_value()) {
+                    throw std::runtime_error(
+                        fmt::format("invalid config:\n{}\nerrors: {}", config,
+                                    opt_errors.value()));
+                }
+                SPDLOG_TRACE("config check passed");
+            } else {
+                SPDLOG_WARN("config check requested but no "
+                            "check_config found");
+            }
+        } else {
+            SPDLOG_TRACE("config check skipped");
+        }
+        return Derived{std::move(config)};
+    }
+};
+
 } // namespace config

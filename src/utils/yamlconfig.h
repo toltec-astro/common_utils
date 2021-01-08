@@ -20,16 +20,7 @@ struct YamlConfig {
     using storage_t = YAML::Node;
     YamlConfig() = default;
     explicit YamlConfig(storage_t node) : m_node(std::move(node)) {}
-    std::string dump_to_str() const { return fmt::format("{}", m_node); }
-    static auto load_from_str(std::string s) {
-        return YamlConfig(YAML::Load(s));
-    }
-    friend std::ostream &operator<<(std::ostream &os,
-                                    const YamlConfig &config) {
-        return os << config.dump_to_str();
-    }
-
-    template <typename key_t> decltype(auto) operator[](key_t &&key) const {
+    template <typename key_t> decltype(auto) get_node(key_t &&key) const {
         auto multiget_node_impl = meta::y_combinator(
             [](auto &&get_node, auto &&node, auto &&x, auto &&...rest) {
                 if constexpr (sizeof...(rest) == 0) {
@@ -48,7 +39,13 @@ struct YamlConfig {
     }
 
     template <typename key_t> bool has(key_t &&key) const {
-        return operator[](FWD(key)).IsDefined();
+        decltype(auto) node = get_node(FWD(key));
+        return node.IsDefined();
+    }
+
+    template <typename key_t> bool has_list(key_t &&key) const {
+        decltype(auto) node = get_node(FWD(key));
+        return node.IsDefined() && node.IsSequence();
     }
 
     template <typename T, typename key_t> bool has_typed(key_t &&key) const {
@@ -64,11 +61,11 @@ struct YamlConfig {
     }
 
     template <typename T, typename key_t> auto get_typed(key_t &&key) const {
-        return operator[](FWD(key)).template as<T>();
+        return get_node(FWD(key)).template as<T>();
     }
     template <typename T, typename key_t>
     auto get_typed(key_t &&key, T &&defval) const {
-        decltype(auto) node = operator[](FWD(key));
+        decltype(auto) node = get_node(FWD(key));
         if (node.IsDefined() && !node.IsNull()) {
             return node.template as<T>();
         }
@@ -79,10 +76,25 @@ struct YamlConfig {
         return get_typed<std::string>(FWD(args)...);
     }
 
-    std::string pformat() const { return dump_to_str(); }
+    template <typename key_t> auto get_config(key_t &&key) {
+        return YamlConfig{get_node(FWD(key))};
+    }
 
+    ///@brief Create instance from Yaml filepath.
     static auto from_filepath(const std::string &filepath) {
         return YamlConfig(YAML::LoadFile(filepath));
+    }
+    ///@brief Create instance from Yaml string.
+    static auto from_str(const std::string &s) {
+        return YamlConfig(YAML::Load(s));
+    }
+
+    std::string to_str() const { return fmt::format("{}", m_node); }
+    std::string pformat() const { return to_str(); }
+    template <typename OStream>
+    friend auto operator<<(OStream &os, const YamlConfig &config)
+        -> decltype(auto) {
+        return os << config.pformat();
     }
 
 private:
