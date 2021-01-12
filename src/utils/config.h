@@ -227,7 +227,7 @@ public:
             }
         }
         m_config = std::move(config);
-        SPDLOG_TRACE("m_config:\n{}", m_config.pformat());
+        // SPDLOG_TRACE("m_config:\n{}", m_config.pformat());
     }
     static auto from_config(config_t config, bool check = true) {
         if (check) {
