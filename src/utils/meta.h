@@ -6,6 +6,7 @@
 #include <optional>
 #include <tuple>
 #include <variant>
+#include <type_traits>
 
 namespace meta {
 
@@ -378,7 +379,7 @@ public:
         return fun_(std::ref(*this), std::forward<Args>(args)...);
     }
 };
-} // namespace internal
+} // namespace internalUnnamed
 
 template <class Fun> decltype(auto) y_combinator(Fun &&fun) {
     return internal::y_combinator_result<std::decay_t<Fun>>(

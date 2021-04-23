@@ -50,8 +50,10 @@ struct eigeniter : public ::testing::Test {
     static constexpr auto blk_32 = []() {
         MatrixXd m{5, 4};
         m.setConstant(100.);
-        auto b = m.block(1, 1, 2, 3);
-        alg::fill_linspaced(b);
+        auto b = [] (auto&& m) {
+            return FWD(m).block(1, 1, 2, 3);
+        };
+        alg::fill_linspaced(b(m));
         return std::make_tuple(std::move(m), std::move(b));
     };
 
@@ -59,8 +61,10 @@ struct eigeniter : public ::testing::Test {
         Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
             m{5, 4};
         m.setConstant(100.);
-        auto b = m.block(0, 1, 2, 3);
-        alg::fill_linspaced(b);
+        auto b = [] (auto&& m) {
+            return FWD(m).block(0, 1, 2, 3);
+        };
+        alg::fill_linspaced(b(m));
         return std::make_tuple(std::move(m), std::move(b));
     };
 
@@ -107,14 +111,16 @@ TEST_F(eigeniter, mat_32r) {
 }
 
 TEST_F(eigeniter, blk_32) {
-    auto [m, b] = blk_32();
+    auto [m, b_] = blk_32();
+    auto b = b_(m);
     SPDLOG_TRACE("m{} b{}", m, b);
     auto [begin, end] = eii::iters(b);
     print_range(begin, end);
 }
 
 TEST_F(eigeniter, blk_32r) {
-    auto [m, b] = blk_32r();
+    auto [m, b_] = blk_32r();
+    auto b = b_(m);
     SPDLOG_TRACE("mr{} br{}", m, b);
     auto [begin, end] = eii::iters(b);
     print_range(begin, end);

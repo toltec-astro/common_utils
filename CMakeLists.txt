@@ -2,22 +2,31 @@ cmake_minimum_required(VERSION 3.12)
 project(common_utils LANGUAGES CXX)
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/CommonSettings.cmake")
 
+# version
+include(gitversion)
+GenVersionHeader(common_utils)
+
+# dependencies
+
 find_package(OpenMP REQUIRED)
-find_package(NetCDF REQUIRED COMPONENTS CXX4)
+include(NetCDFCXX4)
+include(Eigen3)
+include(CCfits)
 include(FileSystem)
 include(SpdlogAndFmt)
 include(Grppi)
-include(Eigen3)
 if (VERBOSE)
     print_target_properties(Eigen3::Eigen)
+    print_target_properties(cmake_utils::cfitsio)
+    print_target_properties(cmake_utils::CCfits)
 endif()
 
 add_library(common_utils INTERFACE)
 target_include_directories(common_utils INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(common_utils
     INTERFACE
-        spdlog::spdlog
-        fmt::fmt
+        cmake_utils::spdlog_and_fmt
+        cmake_utils::CCfits
         Eigen3::Eigen
         grppi::grppi
     )

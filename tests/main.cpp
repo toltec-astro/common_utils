@@ -9,6 +9,7 @@
 #include "utils/formatter/matrix.h"
 #include "utils/grppiex.h"
 #include "utils/container.h"
+#include <CCfits/CCfits>
 
 namespace {
 
@@ -126,9 +127,78 @@ TEST(alg, polyfit) {
     SPDLOG_TRACE("linear fit: det={}", det);
 }
 
+TEST(fits_utils, ccfits) {
+    CCfits::FITS::setVerboseMode("True");
+
+    // make some example data
+    auto [r, c] = std::pair<Eigen::Index, Eigen::Index>{40, 50};
+    std::map<std::string, Eigen::MatrixXd> data_items;
+    data_items["signal"] = Eigen::MatrixXd::Constant(r, c, 1.);
+    data_items["weight"] = Eigen::MatrixXd::Constant(r, c, 2.);
+    SPDLOG_TRACE("create fits from data: {}", data_items);
+
+    // declare auto-pointer to FITS at function scope. Ensures no resources
+    // leaked if something fails in dynamic allocation.
+    std::unique_ptr<CCfits::FITS> pFits(nullptr);
+    // note the leading !, this is to overwrite exist fits
+    const std::string filepath("!test_fits_file_from_common_utils.fits");
+    try
+    {
+        // create the fits object with empty primary hdu
+        // we'll add images later
+        pFits.reset( new CCfits::FITS(filepath , CCfits::Write) );
+    }
+    catch (CCfits::FITS::CantCreate)
+    {
+          // ... or not, as the case may be.
+        SPDLOG_ERROR("unable to create file {}", filepath);
+    }
+    // add some header to primary hdu
+    pFits->pHDU().addKey("OBJECT", "common_utils_fits_utils_ccfits_test", "");
+    pFits->pHDU().writeDate();
+    for (const auto& [k, v]: data_items) {
+        SPDLOG_TRACE("create img ext {} with data {}", k, v);
+        // note the order of axis. naxis1 is x which is col
+        std::vector naxes{v.cols(), v.rows()};
+        auto hdu = pFits->addImage(k, DOUBLE_IMG, naxes);
+        // add data
+        // the data needs to be wrapped in std::valarray
+        std::valarray<double> tmp(v.data(), v.size());
+        // write all the data to hdu
+        // note that fits is 1-based. so the first pixel has to be 1
+        hdu->write(1, tmp.size(), tmp);
+        // add wcs to the img hdu
+        hdu->addKey("CTYPE1", "RA---TAN", "");
+        hdu->addKey("CTYPE2", "DEC--TAN", "");
+        // center pixel. note the order of axis. crpix1 is x which is col
+        // note the extra 1 in the crpix, because fits is 1-based
+        hdu->addKey("CRPIX1", v.cols() / 2. + 1, "");
+        hdu->addKey("CRPIX2", v.rows() / 2. + 1, "");
+        // coords of the ref pixel in degrees
+        hdu->addKey("CUNIT1", "deg", "");
+        hdu->addKey("CUNIT2", "deg", "");
+        hdu->addKey("CRVAL1", 180., "");
+        hdu->addKey("CRVAL2", 60., "");
+        // CD matrix. We assume pxiel schale of 1arcsec, and no rota
+        double pixsize_arcsec = 1.;
+        double pixsize_deg = pixsize_arcsec / 3600.;
+        hdu->addKey("CD1_1", -pixsize_deg, "");
+        hdu->addKey("CD1_2", 0, "");
+        hdu->addKey("CD2_1", 0, "");
+        hdu->addKey("CD2_2", pixsize_deg, "");
+    }
+
+    // let's check if we got them correct
+    SPDLOG_TRACE("Fits Info:\n{}\n", pFits->pHDU());
+    for (auto kv: pFits->extension()) {
+        SPDLOG_TRACE("extension {}:\n{}", kv.first, *kv.second);
+    }
+}
+
 } // namespace
 
 int main(int argc, char *argv[]) {
+    logging::init<>(true);
     testing::InitGoogleTest(&argc, argv);
     benchmark::Initialize(&argc, argv);
     std::cout << "Running tests:\n";

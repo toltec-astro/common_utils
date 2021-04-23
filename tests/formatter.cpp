@@ -22,7 +22,7 @@ template <typename... Args> std::string fmtlog(Args &&... args) {
 TEST(formatter, meta_enum_type) {
     using meta = Type_meta;
     EXPECT_NO_THROW(fmtlog("{}: members{}", meta::name, meta::members));
-    EXPECT_NO_THROW(fmtlog("non existing member {}", meta::name,
+    EXPECT_NO_THROW(fmtlog("{}: non existing member {}", meta::name,
                            meta::to_name(static_cast<Type>(-1))));
     EXPECT_NO_THROW(fmtlog("TypeA: {:d}", meta::from_name("TypeA")));
     EXPECT_NO_THROW(fmtlog("TypeA: {:s}", meta::from_name("TypeA")));
@@ -34,7 +34,7 @@ TEST(formatter, meta_enum_type) {
 TEST(formatter, meta_enum_flag) {
     using meta = Flag_meta;
     EXPECT_NO_THROW(fmtlog("{}: members{}", meta::name, meta::members));
-    EXPECT_NO_THROW(fmtlog("non existing member {}", meta::name,
+    EXPECT_NO_THROW(fmtlog("{}: non existing member {}", meta::name,
                            meta::to_name(static_cast<Flag>(-1))));
     EXPECT_NO_THROW(fmtlog("FlagA: {:d}", meta::from_name("FlagA")));
     EXPECT_NO_THROW(fmtlog("FlagA: {:s}", meta::from_name("FlagA")));
@@ -44,12 +44,12 @@ TEST(formatter, meta_enum_flag) {
     EXPECT_NO_THROW(fmtlog("FlagC: {:d}", meta::from_name("FlagC")));
     EXPECT_NO_THROW(fmtlog("FlagC: {:s}", meta::from_name("FlagC")));
     EXPECT_NO_THROW(fmtlog("FlagC: {:l}", meta::from_name("FlagC")));
-    EXPECT_NO_THROW(fmtlog("FlagC: {:s}", Flag::FlagA));
+    EXPECT_NO_THROW(fmtlog("FlagC: {:s}", Flag::FlagC));
 
     EXPECT_NO_THROW(fmtlog("FlagD: {:d}", meta::from_name("FlagD")));
     EXPECT_NO_THROW(fmtlog("FlagD: {:s}", meta::from_name("FlagD")));
     EXPECT_NO_THROW(fmtlog("FlagD: {:l}", meta::from_name("FlagD")));
-    EXPECT_NO_THROW(fmtlog("FlagD: {:s}", Flag::FlagA));
+    EXPECT_NO_THROW(fmtlog("FlagD: {:s}", Flag::FlagD));
     EXPECT_NO_THROW(fmtlog("abc: {}", meta::from_name("abc")));
 }
 
@@ -71,7 +71,7 @@ TEST(formatter, variant) {
     using namespace std::literals;
     EXPECT_EQ(fmtlog("v={}", v = true), "v=true (bool)");
     EXPECT_EQ(fmtlog("v={}", v = -1), "v=-1 (int)");
-    EXPECT_EQ(fmtlog("v={}", v = 2.), "v=2.0 (doub)");
+    EXPECT_EQ(fmtlog("v={}", v = 2.), "v=2 (doub)");
     EXPECT_EQ(fmtlog("v={}", v = "v"), "v=\"v\" (str)");
     EXPECT_EQ(fmtlog("v={}", v = "v"s), "v=\"v\" (str)");
 }

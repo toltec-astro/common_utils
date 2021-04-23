@@ -17,5 +17,6 @@ target_link_libraries(test_mpi
     PRIVATE
         common_utils
         MPI::MPI_C
+        MPI::MPI_CXX
         ${NETCDF_LIBRARIES})
 add_dependencies(test_progs test_mpi)

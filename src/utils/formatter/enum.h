@@ -43,7 +43,8 @@ auto format_enum_value_meta(FormatContextOut &it, char spec, const T &meta) {
     case 'l': {
         // format using the string
         auto str = fmt_utils::remove_space(std::string(meta.string));
-        str.erase(str.begin(), ++std::find(str.begin(), str.end(), '='));
+        // remove up to = sign
+        str.erase(str.begin(), std::find(str.begin(), str.end(), '='));
         // without explicit def
         if (str.empty()) {
             it = fmt::format_to(it, "{}(", meta.name);
@@ -51,6 +52,7 @@ auto format_enum_value_meta(FormatContextOut &it, char spec, const T &meta) {
             return fmt::format_to(it, ")");
         }
         // with explicit def
+        str.erase(str.begin());  // remove the = sign
         return fmt::format_to(it, "{}({})", meta.name, str);
     }
     default: {
@@ -162,7 +164,8 @@ struct formatter<bitmask::bitmask<T>>
             return fmt_utils::format_bitmask_with_meta(it, spec, bm);
         } else {
             // fallback to format value
-            it = fmt_utils::format_bits(format_to(it, "bits("), bm.bits());
+            it = format_to(it, "bits(");
+            it = fmt_utils::format_bits(it, bm.bits());
             return format_to(it, ")");
         }
     }

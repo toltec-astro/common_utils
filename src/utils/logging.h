@@ -61,20 +61,23 @@ struct decorated_invoke {
 
 }  // namespace
 
+static auto level_names = std::vector<std::string>{SPDLOG_LEVEL_NAMES};
+constexpr auto level_name_views = [] () {
+   std::array a SPDLOG_LEVEL_NAMES;
+   return a;
+} ();
+
 constexpr auto active_level =
     static_cast<spdlog::level::level_enum>(SPDLOG_ACTIVE_LEVEL);
 
-static auto active_level_str =
-    std::string_view{spdlog::level::to_string_view(active_level).data()};
-
-static auto level_names = std::vector<std::string>{SPDLOG_LEVEL_NAMES};
+constexpr auto active_level_str = level_name_views[active_level];
 
 template <spdlog::level::level_enum level = active_level>
 void init(bool verbose = false) {
     if (verbose) {
         auto msg = fmt::format(
-            "** logging ** configured with level={} ({} at compile time)\n",
-            spdlog::level::to_string_view(level), active_level_str);
+            "** logging ** configured with level={} ({} at compile time; available levels: {})\n",
+            spdlog::level::to_string_view(level), active_level_str, level_name_views);
         std::cout << msg;
     }
     spdlog::set_level(level);

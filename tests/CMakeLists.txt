@@ -16,9 +16,9 @@ target_link_libraries(common_utils_test
         common_utils
         gtest gmock benchmark
     )
-add_custom_command(TARGET common_utils_test
-    POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/data ${CMAKE_CURRENT_BINARY_DIR}/data
-    )
+# add_custom_command(TARGET common_utils_test
+#     POST_BUILD
+#         COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/data ${CMAKE_CURRENT_BINARY_DIR}/data
+#     )
 add_dependencies(check common_utils_test)
 gtest_discover_tests(common_utils_test TEST_PREFIX "common_utils::")

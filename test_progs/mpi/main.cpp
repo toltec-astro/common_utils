@@ -19,6 +19,7 @@ auto whoami() {
 }
 
 int main([[maybe_unused]] int argc, [[maybe_unused]] char *argv[]) {
+    logging::init<>(true);
     MPI_Init(NULL, NULL);
     auto [mpisize, mpirank, mpiproc, mpiver] = whoami();
     if (0 == mpirank) {
