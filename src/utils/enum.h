@@ -110,6 +110,19 @@ constexpr auto name(T v) {
     return meta_t::from_value(v).value().name;
 }
 
+template <typename T, template <T, typename...> class TT,
+          REQUIRES_(std::is_enum<T>)>
+constexpr auto enum_type_to_variant() {
+    return meta::apply_const_sequence(
+        [](auto... i) {
+            return std::variant<TT<static_cast<T>(decltype(i)::value)>...>{};
+        },
+        values<T>());
+}
+template <typename T, template <T, typename...> class TT,
+          REQUIRES_(std::is_enum<T>)>
+using enum_type_to_variant_t = decltype(enum_type_to_variant<T, TT>());
+
 } // namespace enum_utils
 
 #define BITMASK_(Type, UnderlyingType, ValueMask, ...)                         \
